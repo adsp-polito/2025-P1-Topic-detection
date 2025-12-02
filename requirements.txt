@@ -1,0 +1,8 @@
+pandas
+numpy
+bertopic
+langdetect
+seaborn
+scikit-learn
+plotly
+tqdm
