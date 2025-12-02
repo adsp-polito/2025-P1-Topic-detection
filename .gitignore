@@ -1,0 +1,71 @@
+# -----------------------------------------------------------------------------
+# 1. Python & uv (Dependency Management)
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# uv specific
+# We ignore the virtual environment created by uv
+.venv/
+.env
+
+# Note: Always COMMIT 'pyproject.toml' and 'uv.lock'
+
+# -----------------------------------------------------------------------------
+# 2. VS Code & Jupyter
+# -----------------------------------------------------------------------------
+.vscode/
+
+.ipynb_checkpoints/
+# Jupyter config
+.jupyter/
+
+# -----------------------------------------------------------------------------
+# 3. Data (NLP & Topic Detection)
+# -----------------------------------------------------------------------------
+# Ignore raw data and intermediate processing files
+# data/
+# datasets/
+
+# Common data formats used in NLP
+*.csv
+*.tsv
+*.jsonl
+*.parquet
+*.feather
+*.pkl
+*.pickle
+
+# -----------------------------------------------------------------------------
+# 4. Model Weights & Large Artifacts
+# -----------------------------------------------------------------------------
+# NLP models are too large for Git. Store them in S3/HuggingFace Hub instead.
+models/
+saved_models/
+checkpoints/
+
+# Common Model Extensions (PyTorch, TensorFlow, Hugging Face, Gensim)
+*.pt
+*.pth
+*.bin
+*.h5
+*.onnx
+*.safetensors
+*.gguf
+
+# Gensim / LDA specific files
+*.mm
+*.mm.index
+*.dict
+
+# -----------------------------------------------------------------------------
+# 5. Output & Visualization
+# -----------------------------------------------------------------------------
+# HTML visualizations (e.g. pyLDAvis, BERTopic interactive maps)
+*.html
+outputs/
+logs/
+wandb/
+mlruns/
