@@ -1,15 +1,15 @@
 from typing import List, Optional
-
 import pandas as pd
 from langdetect import DetectorFactory, detect
+import re
+import numpy as np
 from tqdm import tqdm
 
 DetectorFactory.seed = 0  # Ensure reproducibility for language detection
 
-
 class ReviewCleaner:
     """
-    Handles data loading, exploratory analysis, and pre-processing
+    Handles data loading and pre-processing
     specifically for the HYPE topic detection task.
     """
 
@@ -36,9 +36,7 @@ class ReviewCleaner:
             print(f"Error loading data: {e}")
             return pd.DataFrame()
 
-    def filter_by_sentiment(
-        self, target_sentiments: List[str] = ["negative", "neutral"]
-    ) -> None:
+    def filter_by_sentiment(self, target_sentiments: List[str] = ["negative", "neutral"]) -> None:
         """
         Filters the dataset to keep only specific sentiments.
         Goal: Detect 'negative topics (issues)'.
@@ -48,7 +46,7 @@ class ReviewCleaner:
 
         initial_count = len(self.df)
 
-        # Normalize to lowercase for comparison
+        # Normalize sentiment column to lowercase for comparison
         mask = (
             self.df["sentiment"]
             .str.lower()
@@ -60,6 +58,7 @@ class ReviewCleaner:
             f"--> [Filter] Kept sentiments {target_sentiments}. Dropped {initial_count - len(self.df)} rows."
         )
 
+    #DONT USE
     def remove_junk_and_outliers(self, min_words: int = 3) -> None:
         """
         Removes reviews that are too short (< min_words) to provide context.
@@ -83,42 +82,99 @@ class ReviewCleaner:
             f"--> [Filter] Removed short outliers (< {min_words} words). Dropped {initial_count - len(self.df)} rows."
         )
 
-    def filter_non_italian(self) -> None:
+    
+    def detect_language(self) -> None:
         """
-        filter_non_italian using langdetect.
+        Detects the language of the review using langdetect.
         Based on dataset being 'mostly in Italian'.
         """
         if self.df is None:
             return
 
-        initial_count = len(self.df)
-
-        def is_italian_safe(text: str) -> bool:
+        def safe_detect_language(text:str) -> None:
             try:
-                # If text is very short (<20 chars), language detection is unreliable.
-                # We assume it is valid to avoid dropping valid short Italian phrases.
-                if len(str(text)) < 20:
-                    return True
-                return detect(text) == "it"
+                return detect(text)
             except:
-                return False
+                return np.nan
+        
+        print("--> [Language Detector] Running language detection (this may take a moment)...")
+        self.df["language"] = self.df["review"].progress_apply(safe_detect_language)
 
-        print("--> [Filter] Running language detection (this may take a moment)...")
-        self.df["is_italian"] = self.df["Review_Text"].progress_apply(is_italian_safe)
-        self.df = self.df[self.df["is_italian"]].copy()
+    
+    def clean_text(self) -> pd.DataFrame:
+        """
+        Performs pre-processing to clean the text before rearranging the sentiment:
+        1. Normalize spacing 
+        2. Remove URLs, mentions 
+        3. Reduce repeated characters
+        """
 
-        print(
-            f"--> [Filter] Removed non-Italian texts. Dropped {initial_count - len(self.df)} rows."
+        def clean(text:str) -> str:
+            if not isinstance(text, str): # Handle non-string inputs
+                return ""
+            # Replace repeated spaces with one space only ' '
+            text = text.strip()
+            text = re.sub(r'\s+', ' ', text)
+            # Replace URLs, mentions 
+            text = re.sub(r'http\S+', '<URL> ', text)
+            text = re.sub(r'@\w+', '<USER>', text)
+            # Reduce repeated charachters ('bellooo' -> 'bello')
+            text = re.sub(r"(.)\1{2,}", r"\1\1", text)
+
+            return text
+
+        # Apply the function to the 'review' column
+        self.df['cleaned_review'] = self.df['review'].progress_apply(clean)
+
+        print(f"--> [Cleaner] Cleaning reviews text.")
+
+        return self.df
+    
+    
+    def remove_junk(self) -> None:
+        """
+        Removes meaningless reviews:
+        1. Reviews that contain only meaningless words like 'ok', 'pessima', etc.
+        2. Reviews with empty text or whitespace or punctuation 
+        """
+        if self.df is None:
+            return
+        
+        # Define meaningless words
+        WORDS = ['ok', 'pessima', 'bella', 'sconsigliata', 'bene', 'boh', 'bleah', 'male']
+
+        # Calculate word count safely
+        self.df["word_count"] = self.df["cleaned_review"].progress_apply(
+            lambda x: len(str(x).split())
         )
 
-        # Set the final cleaned dataframe and reset index
-        self.df_clean = self.df.reset_index(drop=True)
+        # Filter 
+        mask = ((self.df["word_count"] == 1) & (self.df["cleaned_review"].str.lower().str.strip().isin(WORDS)))
+        self.df = self.df[~mask].copy()
+
+        print(f"--> [Filter] Removed short reviews with just 1 meaningless word. Dropped {mask.sum()} rows.")
+
+        # Remove rows where cleaned_review is empty or whitespace
+        before = len(self.df)
+        self.df = self.df[self.df["cleaned_review"].str.strip() != ""].copy()
+        # Remove rows with ONLY punctuation *excluding tags <URL> and <USER>*
+        pattern_only_punct = r'^(?!<URL>|<USER>)[\W_]+$'
+        self.df = self.df[~self.df["cleaned_review"].str.match(pattern_only_punct)]
+        after = len(self.df)
+
+        print(f"--> [Cleaner] Removed {before - after} empty/meaningless reviews.")
+
+        # Save cleaned df 
+        self.df_clean = self.df.copy()
+
+        return self.df_clean
+
 
     def get_cleaned_corpus(self) -> List[str]:
         """Returns the list of text strings ready for BERTopic."""
         if self.df_clean is None:
             raise ValueError("Data processing not complete.")
-        return self.df_clean["Review_Text"].astype(str).tolist()
+        return self.df_clean["cleaned_review"].astype(str).tolist()
 
     def get_cleaned_dataframe(self) -> pd.DataFrame:
         """Returns the full cleaned dataframe (useful for saving later)."""

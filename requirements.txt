@@ -6,3 +6,5 @@ seaborn
 scikit-learn
 plotly
 tqdm
+deep_translator
+openpyxl
