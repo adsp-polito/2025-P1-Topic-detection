@@ -1,6 +1,5 @@
-from cleaner import ReviewCleaner
-from translation import ReviewTranslation
-import pandas as pd
+from preprocessing.cleaner import ReviewCleaner
+from preprocessing.translation import ReviewTranslation
 
 def main():
 

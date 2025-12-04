@@ -131,7 +131,7 @@ class ReviewCleaner:
         return self.df
     
     
-    def remove_junk(self) -> None:
+    def remove_junk(self) -> pd.DataFrame:
         """
         Removes meaningless reviews:
         1. Reviews that contain only meaningless words like 'ok', 'pessima', etc.
