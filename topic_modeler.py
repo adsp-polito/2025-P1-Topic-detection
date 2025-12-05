@@ -15,6 +15,7 @@ class TopicModeler:
 
     def __init__(self, project_name="hype-topic-detection"):
         self.project_name = project_name
+        self.embedding_model = None
 
         # Setup Italian Stopwords
         nltk.download("stopwords", quiet=True)
@@ -55,29 +56,24 @@ class TopicModeler:
         run = wandb.init(project=self.project_name, name=run_name, job_type="modeling")
         wandb.config.update({"model_type": model_type})
 
-        # 2. Select Embedding Model
+        # 2. Select and Store Embedding Model
+        # CRITICAL CHANGE: We store it in 'self' to access it later for evaluation
         if model_type == "italian_social":
-            # AlBERTo: Trained on Italian TWITTER (Social Media).
-            # Excellent for app reviews (short, informal, slang).
-            # We use a version compatible with Sentence-Transformers.
             print("    Loading Italian Social model (AlBERTo)...")
             model_name = (
                 "m-polignano-uniba/bert_uncased_L-12_H-768_A-12_italian_alb3rt0"
             )
-            # Note: AlBERTo is uncased, so it handles lowercase text well.
         else:
-            # SOTA Multilingual: Robust, handles mixed languages well.
             print("    Loading SOTA Multilingual model (MiniLM)...")
             model_name = "paraphrase-multilingual-MiniLM-L12-v2"
 
-        embedding_model = SentenceTransformer(model_name)
+        self.embedding_model = SentenceTransformer(model_name)
 
-        # Encode embeddings first (faster re-runs if debugging)
+        # Encode embeddings
         print("    Encoding embeddings...")
-        embeddings = embedding_model.encode(docs, show_progress_bar=True)
+        embeddings = self.embedding_model.encode(docs, show_progress_bar=True)
 
         # 3. Dimensionality Reduction (UMAP)
-        # n_neighbors: 15 is standard.
         umap_model = UMAP(
             n_neighbors=15,
             n_components=5,
@@ -87,7 +83,6 @@ class TopicModeler:
         )
 
         # 4. Clustering (HDBSCAN)
-        # min_cluster_size=15 prevents micro-topics.
         hdbscan_model = HDBSCAN(
             min_cluster_size=15,
             metric="euclidean",
@@ -100,7 +95,7 @@ class TopicModeler:
 
         # 6. Initialize and Fit BERTopic
         topic_model = BERTopic(
-            embedding_model=embedding_model,
+            embedding_model=self.embedding_model,
             umap_model=umap_model,
             hdbscan_model=hdbscan_model,
             vectorizer_model=vectorizer_model,
@@ -125,7 +120,6 @@ class TopicModeler:
             }
         )
 
-        # Visualizations
         try:
             wandb.log(
                 {"intertopic_map": wandb.Html(topic_model.visualize_topics().to_html())}
