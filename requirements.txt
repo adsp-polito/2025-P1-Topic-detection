@@ -8,3 +8,12 @@ plotly
 tqdm
 deep_translator
 openpyxl
+torch
+transformers
+sentencepiece
+accelerate
+wandb
+sentence-transformers
+umap-learn
+hdbscan
+emoji
