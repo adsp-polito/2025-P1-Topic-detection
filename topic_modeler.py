@@ -90,8 +90,8 @@ class TopicModeler:
             prediction_data=True,
         )
 
-        # 5. Vectorizer (Topic Representation)
-        vectorizer_model = CountVectorizer(stop_words=self.stop_words, min_df=5)
+        # 5. Vectorizer (Topic Representation) min_df=2 ensures words appear in at least 2 topics (or docs), preventing the crash if topics are few.
+        vectorizer_model = CountVectorizer(stop_words=self.stop_words, min_df=2)
 
         # 6. Initialize and Fit BERTopic
         topic_model = BERTopic(

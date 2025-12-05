@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import wandb
 
@@ -10,8 +12,13 @@ from translation import TranslatorModule
 
 # ================= CONFIGURATION =================
 DATA_PATH = "./data/dataset_v2.xlsx"
-TAXONOMY_PATH = "./data/taxonomy_v2.xlsx"  # Ensure this matches your filename
+TAXONOMY_PATH = "./data/taxonomy_v2.xlsx"
+CACHE_FILE = "./data/cached_preprocessed_data.pkl"
 WANDB_PROJECT = "hype-project-topics"
+
+# Set to True to load from cache if available.
+# Set to False to force re-running translation/sentiment (e.g., if you changed the cleaning logic).
+USE_CACHE = True
 
 # Options: "multilingual" (SOTA Generic) OR "italian_social" (AlBERTo - Tweets/Reviews)
 MODEL_CHOICE = "italian_social"
@@ -36,31 +43,55 @@ def main():
     print("=== HYPE TOPIC DETECTION PIPELINE ===")
     print(f"=== Selected Model: {MODEL_CHOICE} ===")
 
-    # 1. LOAD DATA
-    loader = DataProcessor(DATA_PATH)
-    df = loader.load_data()
+    df = None
 
-    # 2. DETECT LANGUAGE
-    df = loader.detect_language(column="review")
+    # --- CHECKPOINT LOGIC ---
+    if USE_CACHE and os.path.exists(CACHE_FILE):
+        print(f"--> [Cache] Found cached file '{CACHE_FILE}'. Loading...")
+        df = pd.read_pickle(CACHE_FILE)
+        print(f"--> [Cache] Loaded {len(df)} reviews from cache.")
 
-    # 3. TRANSLATE (Non-IT -> IT)
-    translator = TranslatorModule(df)
-    df = translator.translate_non_italian(text_col="review")
+        # Initialize loader just to have access to helper methods if needed later
+        loader = DataProcessor(DATA_PATH)
+        loader.df = df
+    else:
+        print(
+            "--> [Cache] No cache found (or USE_CACHE=False). Running full preprocessing..."
+        )
 
-    # 4. TEXT CLEANING & EMOJI CONVERSION
-    # Clean *before* sentiment analysis so emojis become text (e.g., ":thumbs_down:")
-    loader.df = df
-    df = loader.basic_cleaning(text_column="final_text", target_column="clean_text")
+        # 1. LOAD DATA
+        loader = DataProcessor(DATA_PATH)
+        df = loader.load_data()
 
-    # 5. RE-CLASSIFY SENTIMENT (Ensemble)
-    sentiment_engine = SentimentEnsemble()
-    df = sentiment_engine.get_ensemble_sentiment(df, text_col="clean_text")
+        # 2. DETECT LANGUAGE
+        df = loader.detect_language(column="review")
+
+        # 3. TRANSLATE (Non-IT -> IT)
+        translator = TranslatorModule(df)
+        df = translator.translate_non_italian(text_col="review")
+
+        # 4. TEXT CLEANING & EMOJI CONVERSION
+        # Clean *before* sentiment analysis so emojis become text (e.g., ":thumbs_down:")
+        loader.df = df
+        df = loader.basic_cleaning(text_column="final_text", target_column="clean_text")
+
+        # 5. RE-CLASSIFY SENTIMENT (Ensemble)
+        sentiment_engine = SentimentEnsemble()
+        df = sentiment_engine.get_ensemble_sentiment(df, text_col="clean_text")
+
+        # SAVE CACHE
+        print(f"--> [Cache] Saving preprocessed data to '{CACHE_FILE}'...")
+        df.to_pickle(CACHE_FILE)
 
     # 6. FILTER DATASET (STRICTLY NEGATIVE)
     print("--> [Filter] Keeping ONLY Negative reviews for Topic Detection...")
     df = df[df["sentiment"] == "negative"].reset_index(drop=True)
 
     print(f"--> [Filter] {len(df)} negative reviews remaining.")
+
+    if "loader" not in locals():
+        loader = DataProcessor(DATA_PATH)
+        loader.df = df
 
     # Junk Removal
     df = loader.remove_junk_reviews(column="clean_text")
@@ -73,9 +104,9 @@ def main():
     docs = df["clean_text"].tolist()
     print(f"--> [Topic Modeling] Starting run on {len(docs)} negative reviews...")
 
-    if len(docs) > 50:
+    if len(docs) > 10:
         tm = TopicModeler(project_name=WANDB_PROJECT)
-        run_name = f"negative_issues_{MODEL_CHOICE}"
+        run_name = f"negative_reviews_{MODEL_CHOICE}"
 
         # Run Modeling
         model, topics, probs = tm.run(docs, run_name=run_name, model_type=MODEL_CHOICE)
