@@ -4,25 +4,13 @@ import pandas as pd
 import wandb
 
 from cleaner import DataProcessor
+from config import cfg
 from duplicate_remover import DuplicateRemover
 from evaluation import TaxonomyMapper, calculate_coherence_metrics
+from logger import WandBLogger
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
-
-# ================= CONFIGURATION =================
-DATA_PATH = "./data/dataset_v2.xlsx"
-TAXONOMY_PATH = "./data/taxonomy_v2.xlsx"
-CACHE_FILE = "./data/cached_preprocessed_data.pkl"
-WANDB_PROJECT = "hype-project-topics"
-
-# Set to True to load from cache if available.
-# Set to False to force re-running translation/sentiment (e.g., if you changed the cleaning logic).
-USE_CACHE = True
-
-# Options: "multilingual" (SOTA Generic) OR "italian_social" (AlBERTo - Tweets/Reviews)
-MODEL_CHOICE = "italian_social"
-# =================================================
 
 
 def load_taxonomy(path):
@@ -41,26 +29,28 @@ def load_taxonomy(path):
 
 def main():
     print("=== HYPE TOPIC DETECTION PIPELINE ===")
-    print(f"=== Selected Model: {MODEL_CHOICE} ===")
 
+    # Load Paths from Config
+    data_path = cfg.get("paths.data")
+    cache_path = cfg.get("paths.cache")
+    use_cache = cfg.get("preprocessing.use_cache")
+
+    # print(f"=== Selected Model: {MODEL_CHOICE} ===")
+
+    loader = DataProcessor(data_path)
     df = None
 
     # --- CHECKPOINT LOGIC ---
-    if USE_CACHE and os.path.exists(CACHE_FILE):
-        print(f"--> [Cache] Found cached file '{CACHE_FILE}'. Loading...")
-        df = pd.read_pickle(CACHE_FILE)
+    if use_cache and os.path.exists(cache_path):
+        print(f"--> [Cache] Found cached file '{cache_path}'. Loading...")
+        df = pd.read_pickle(cache_path)
         print(f"--> [Cache] Loaded {len(df)} reviews from cache.")
 
-        # Initialize loader just to have access to helper methods if needed later
-        loader = DataProcessor(DATA_PATH)
         loader.df = df
     else:
-        print(
-            "--> [Cache] No cache found (or USE_CACHE=False). Running full preprocessing..."
-        )
+        print("--> [Cache] No cache found. Running full preprocessing...")
 
         # 1. LOAD DATA
-        loader = DataProcessor(DATA_PATH)
         df = loader.load_data()
 
         # 2. DETECT LANGUAGE
@@ -83,15 +73,34 @@ def main():
         print(f"--> [Cache] Saving preprocessed data to '{CACHE_FILE}'...")
         df.to_pickle(CACHE_FILE)
 
+    # --- EDA LOGGING (Sentiment Distribution) ---
+    if cfg.get("project.wandb_logging"):
+        print("--> [WandB] Logging Sentiment Distribution (EDA)...")
+        logger = WandBLogger(job_type="EDA", run_name="sentiment_analysis_v2")
+
+        # Prepare Data
+        sent_counts = df["sentiment"].value_counts().reset_index()
+        sent_counts.columns = ["sentiment", "count"]
+
+        # Log Table
+        table = wandb.Table(dataframe=sent_counts)
+        logger.log_plot("sentiment_data", table, plot_type="table")
+
+        # Log Bar Chart
+        bar_plot = wandb.plot.bar(
+            table, "sentiment", "count", title="Sentiment Distribution"
+        )
+        logger.log_plot("sentiment_dist_plot", bar_plot, plot_type="chart")
+
+        logger.finish()
+
     # 6. FILTER DATASET (STRICTLY NEGATIVE)
     print("--> [Filter] Keeping ONLY Negative reviews for Topic Detection...")
     df = df[df["sentiment"] == "negative"].reset_index(drop=True)
 
     print(f"--> [Filter] {len(df)} negative reviews remaining.")
 
-    if "loader" not in locals():
-        loader = DataProcessor(DATA_PATH)
-        loader.df = df
+    loader.df = df
 
     # Junk Removal
     df = loader.remove_junk_reviews(column="clean_text")
@@ -105,17 +114,16 @@ def main():
     print(f"--> [Topic Modeling] Starting run on {len(docs)} negative reviews...")
 
     if len(docs) > 10:
-        tm = TopicModeler(project_name=WANDB_PROJECT)
-        run_name = f"negative_reviews_{MODEL_CHOICE}"
+        tm = TopicModeler()
 
         # Run Modeling
-        model, topics, probs = tm.run(docs, run_name=run_name, model_type=MODEL_CHOICE)
+        model, topics, probs = tm.run(docs)
 
         # Save Basic Results
         df["topic"] = topics
-        output_filename = f"results_topics_{MODEL_CHOICE}.xlsx"
-        df.to_excel(output_filename, index=False)
-        print(f"--> [Done] Basic results saved to {output_filename}")
+        out_file_topics = cfg.get("paths.output_topics")
+        df.to_excel(out_file_topics, index=False)
+        print(f"--> [Done] Basic results saved to {out_file_topics}")
 
         # --- EVALUATION PHASE ---
 
@@ -124,21 +132,21 @@ def main():
         print("--> [Evaluation] Generating embeddings for scoring...")
         embeddings = tm.embedding_model.encode(docs, show_progress_bar=False)
 
-        silhouette = calculate_coherence_metrics(model, docs, embeddings, topics)
-        if wandb.run is not None:
-            wandb.log({"silhouette_score": silhouette})
+        # Calculate Coherence (Logs to WandB if enabled)
+        calculate_coherence_metrics(model, docs, embeddings, topics)
 
         # B. Taxonomy Mapping
-        provided_labels = load_taxonomy(TAXONOMY_PATH)
+        tax_path = cfg.get("paths.taxonomy")
+        provided_labels = load_taxonomy(tax_path)
 
         if provided_labels:
             mapper = TaxonomyMapper(embedding_model=tm.embedding_model)
             mapping_df = mapper.map_topics_to_taxonomy(model, provided_labels)
 
             print(mapping_df.head())
-            mapping_filename = f"taxonomy_comparison_{MODEL_CHOICE}.xlsx"
-            mapping_df.to_excel(mapping_filename, index=False)
-            print(f"--> [Done] Taxonomy comparison saved to {mapping_filename}")
+            out_file_map = cfg.get("paths.output_mapping")
+            mapping_df.to_excel(out_file_map, index=False)
+            print(f"--> [Done] Taxonomy comparison saved to {out_file_map}")
 
     else:
         print("--> [Error] Not enough data for topic modeling.")

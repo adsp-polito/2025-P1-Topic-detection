@@ -2,6 +2,8 @@ import pandas as pd
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
+from config import cfg
+
 
 class SentimentEnsemble:
     """
@@ -15,10 +17,11 @@ class SentimentEnsemble:
 
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.conf = cfg.get("sentiment")
         print(f"--> [Sentiment] Initializing Voting Ensemble on {self.device}...")
 
         # --- MODEL 1 & 3: FEEL-IT ---
-        self.feelit_name = "MilaNLProc/feel-it-italian-sentiment"
+        self.feelit_name = self.conf.get("feelit_model")
         self.feelit_tokenizer = AutoTokenizer.from_pretrained(self.feelit_name)
         self.feelit_model = AutoModelForSequenceClassification.from_pretrained(
             self.feelit_name
@@ -27,14 +30,14 @@ class SentimentEnsemble:
         # Pipeline version (for the 3rd vote)
         self.feelit_pipeline = pipeline(
             "text-classification",
-            model=self.feelit_name,
-            tokenizer=self.feelit_name,
+            model=self.feelit_model,
+            tokenizer=self.feelit_tokenizer,
             top_k=None,
             device=0 if self.device == "cuda" else -1,
         )
 
         # --- MODEL 2: XLM-RoBERTa ---
-        self.xlm_name = "cardiffnlp/twitter-xlm-roberta-base-sentiment"
+        self.xlm_name = self.conf.get("xlm_model")
         self.xlm_tokenizer = AutoTokenizer.from_pretrained(self.xlm_name)
         self.xlm_model = AutoModelForSequenceClassification.from_pretrained(
             self.xlm_name
@@ -42,14 +45,14 @@ class SentimentEnsemble:
 
         # Labels mapping
         self.label_map_numeric = {"negative": -1, "neutral": 0, "positive": 1}
+        self.batch_size = self.conf.get("batch_size", 16)
 
     def _predict_torch(self, texts, model, tokenizer, labels_order):
         """Helper for batch inference with PyTorch models"""
         preds = []
-        batch_size = 16
 
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
+        for i in range(0, len(texts), self.batch_size):
+            batch = texts[i : i + self.batch_size]
             inputs = tokenizer(
                 batch,
                 padding=True,
@@ -66,7 +69,7 @@ class SentimentEnsemble:
         return preds
 
     def get_ensemble_sentiment(
-        self, df: pd.DataFrame, text_col: str = "review_translated"
+        self, df: pd.DataFrame, text_col: str = "clean_text"
     ) -> pd.DataFrame:
         """
         Applies the 3 approaches and calculates the composition score.
@@ -86,26 +89,38 @@ class SentimentEnsemble:
         )
 
         # --- VOTE 1: FEEL-IT Manual ---
-        # Labels for FEEL-IT: ['negative', 'positive'] (Note: It usually only has 2, but let's check config if it has neutral.
-        # The specific model 'MilaNLProc/feel-it-italian-sentiment' is trained on 2 classes: neg, pos)
-        # If the model has 2 classes, index 0=neg, 1=pos
+        # Model usually has 2 classes: 0=negative, 1=positive
         v1_labels = ["negative", "positive"]
         v1_preds = self._predict_torch(
             texts, self.feelit_model, self.feelit_tokenizer, v1_labels
         )
 
         # --- VOTE 2: XLM-RoBERTa ---
-        # Labels for cardiffnlp: ['negative', 'neutral', 'positive'] -> 0, 1, 2
+        # Model usually has 3 classes: 0=negative, 1=neutral, 2=positive
         v2_labels = ["negative", "neutral", "positive"]
         v2_preds = self._predict_torch(
             texts, self.xlm_model, self.xlm_tokenizer, v2_labels
         )
 
         # --- VOTE 3: FEEL-IT Pipeline ---
-        # The pipeline output structure is complex, we simplify extraction
         print("    ...Running pipeline inference...")
-        pipe_out = self.feelit_pipeline(texts, batch_size=16, truncation=True)
-        v3_preds = [res[0]["label"] for res in pipe_out]  # Taking top label
+        pipe_out = self.feelit_pipeline(texts, self.batch_size, truncation=True)
+
+        # Normalize label casing
+        v3_preds = []
+        for res in pipe_out:
+            # Pipeline returns list of dicts, e.g. [{'label': 'POSITIVE', 'score': 0.9}]
+            raw_label = res[0]["label"]
+
+            # Handle potential "LABEL_0" / "LABEL_1" issues if config is missing
+            if raw_label == "LABEL_0":
+                final_label = "negative"
+            elif raw_label == "LABEL_1":
+                final_label = "positive"
+            else:
+                final_label = raw_label.lower()
+
+            v3_preds.append(final_label)
 
         # --- AGGREGATION ---
         target_df["v1"] = [self.label_map_numeric.get(x, 0) for x in v1_preds]

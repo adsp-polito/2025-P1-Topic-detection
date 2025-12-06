@@ -7,8 +7,10 @@ import pandas as pd
 from langdetect import DetectorFactory, detect
 from tqdm import tqdm
 
+from config import cfg
+
 # Ensure reproducibility for language detection
-DetectorFactory.seed = 0
+DetectorFactory.seed = cfg.get("project.seed", 0)
 
 
 class DataProcessor:
@@ -121,6 +123,9 @@ class DataProcessor:
         is_junk = (word_counts <= 1) & (
             self.df[column].str.lower().str.strip().isin(junk_words)
         )
+
+        # min_words = cfg.get("preprocessing.min_word_count", 3)
+        # is_junk = word_counts < min_words
 
         initial_count = len(self.df)
         self.df = self.df[~is_junk].copy()

@@ -3,6 +3,9 @@ import pandas as pd
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 
+from config import cfg
+from logger import WandBLogger
+
 
 def calculate_coherence_metrics(topic_model, docs, embeddings, topics):
     """
@@ -29,6 +32,15 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics):
     score = silhouette_score(clean_embeddings, clean_topics)
 
     print(f"    Silhouette Score: {score:.4f}")
+
+    # Log to WandB
+    if cfg.get("project.wandb_logging"):
+        # We start a quick run specifically for evaluation metrics
+        # so it doesn't get lost if previous runs are closed.
+        logger = WandBLogger(job_type="evaluation", run_name="eval_metrics")
+        logger.log_metrics({"silhouette_score": score})
+        logger.finish()
+
     return score
 
 

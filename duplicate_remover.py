@@ -3,17 +3,19 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from config import cfg
+
 
 class DuplicateRemover:
     """
     Identifies and removes duplicate reviews using TF-IDF and Cosine Similarity.
     """
 
-    def __init__(self, threshold: float = 0.90):
-        self.threshold = threshold
+    def __init__(self):
+        self.threshold = cfg.get("preprocessing.dedup_threshold", 0.92)
 
     def remove_duplicates(
-        self, df: pd.DataFrame, text_col: str = "final_text"
+        self, df: pd.DataFrame, text_col: str = "clean_text"
     ) -> pd.DataFrame:
         """
         Calculates similarity matrix and drops duplicates.

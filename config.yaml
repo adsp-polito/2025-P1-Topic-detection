@@ -1,0 +1,63 @@
+project:
+  name: "hype-topic-detection"
+  wandb_logging: true
+  seed: 42
+
+paths:
+  data: "./data/dataset_v2.xlsx"
+  taxonomy: "./data/taxonomy_v2.xlsx"
+  cache: "./data/cached_preprocessed_data.pkl"
+  output_topics: "results_topics.xlsx"
+  output_mapping: "taxonomy_comparison.xlsx"
+
+preprocessing:
+  use_cache: true
+  # Reviews with fewer than this many words are considered junk
+  min_word_count: 3
+  # Duplicate removal threshold (0.90 - 0.95 recommended)
+  dedup_threshold: 0.92
+
+sentiment:
+  # Models used in the ensemble
+  feelit_model: "MilaNLProc/feel-it-italian-sentiment"
+  xlm_model: "cardiffnlp/twitter-xlm-roberta-base-sentiment"
+  batch_size: 16
+
+topic_modeling:
+  # Options: "multilingual" (SOTA) or "italian"
+  language: "multilingual"
+  model_choice: "multilingual"
+  embedding_model: "paraphrase-multilingual-MiniLM-L12-v2"
+  # language: "italian"
+  # model_choice: "italian_sbert"
+  # embedding_model: "nickprock/sentence-bert-base-italian-uncased"
+
+  # UMAP (Dimensionality Reduction)
+  umap:
+    n_neighbors: 15
+    n_components: 5
+    min_dist: 0.0
+    metric: "cosine"
+
+  # HDBSCAN (Clustering)
+  hdbscan:
+    min_cluster_size: 15
+    cluster_selection_method: "eom"
+
+  # Vectorizer
+  min_df: 2
+
+  # Custom Stopwords
+  extra_stopwords:
+    - "app"
+    - "applicazione"
+    - "hype"
+    - "solo"
+    - "sempre"
+    - "fatto"
+    - "fare"
+    - "avere"
+    - "essere"
+    - "paga"
+    - "conto"
+    - "banca"
