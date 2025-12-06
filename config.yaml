@@ -25,12 +25,12 @@ sentiment:
 
 topic_modeling:
   # Options: "multilingual" (SOTA) or "italian"
-  language: "multilingual"
-  model_choice: "multilingual"
-  embedding_model: "paraphrase-multilingual-MiniLM-L12-v2"
-  # language: "italian"
-  # model_choice: "italian_sbert"
-  # embedding_model: "nickprock/sentence-bert-base-italian-uncased"
+  # language: "multilingual"
+  # model_choice: "multilingual"
+  # embedding_model: "paraphrase-multilingual-MiniLM-L12-v2"
+  language: "italian"
+  model_choice: "italian_sbert"
+  embedding_model: "nickprock/sentence-bert-base-italian-uncased"
 
   # UMAP (Dimensionality Reduction)
   umap:

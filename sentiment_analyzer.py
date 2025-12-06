@@ -104,7 +104,9 @@ class SentimentEnsemble:
 
         # --- VOTE 3: FEEL-IT Pipeline ---
         print("    ...Running pipeline inference...")
-        pipe_out = self.feelit_pipeline(texts, self.batch_size, truncation=True)
+        pipe_out = self.feelit_pipeline(
+            texts, batch_size=self.batch_size, truncation=True
+        )
 
         # Normalize label casing
         v3_preds = []
