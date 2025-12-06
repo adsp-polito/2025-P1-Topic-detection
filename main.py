@@ -106,7 +106,7 @@ def main():
     df = loader.remove_junk_reviews(column="clean_text")
 
     # 7. DEDUPLICATION (TF-IDF)
-    deduplicator = DuplicateRemover(threshold=0.92)
+    deduplicator = DuplicateRemover()
     df = deduplicator.remove_duplicates(df, text_col="clean_text")
 
     # 8. TOPIC DETECTION (BERTopic)
