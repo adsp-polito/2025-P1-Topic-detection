@@ -56,6 +56,7 @@ class DataProcessor:
         2. Normalize spaces
         3. Mask URLs/Mentions
         4. Reduce repeated chars
+        5. Normalizes SENTIMENT column (Negative -> negative)
         """
         print("--> [Cleaner] Performing text cleaning & emoji conversion...")
 
@@ -84,6 +85,13 @@ class DataProcessor:
             return text
 
         self.df[target_column] = self.df[text_column].progress_apply(clean)
+
+        if "sentiment" in self.df.columns:
+            print("--> [Cleaner] Normalizing 'sentiment' column to lowercase...")
+            self.df["sentiment"] = (
+                self.df["sentiment"].astype(str).str.lower().str.strip()
+            )
+
         return self.df
 
     def remove_junk_reviews(self, column: str = "clean_text") -> pd.DataFrame:

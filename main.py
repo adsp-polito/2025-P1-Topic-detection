@@ -29,7 +29,7 @@ def load_taxonomy(path):
     """Loads the unique labels from the taxonomy CSV."""
     try:
         # Assuming the CSV has a header. We look for the first column.
-        df_tax = pd.read_csv(path)
+        df_tax = pd.read_excel(path)
         # Get the first column as a list of strings
         labels = df_tax.iloc[:, 0].astype(str).unique().tolist()
         print(f"--> [Taxonomy] Loaded {len(labels)} labels from {path}")
