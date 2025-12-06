@@ -70,8 +70,8 @@ def main():
         df = sentiment_engine.get_ensemble_sentiment(df, text_col="clean_text")
 
         # SAVE CACHE
-        print(f"--> [Cache] Saving preprocessed data to '{CACHE_FILE}'...")
-        df.to_pickle(CACHE_FILE)
+        print(f"--> [Cache] Saving to '{cache_path}'...")
+        df.to_pickle(cache_path)
 
     # --- EDA LOGGING (Sentiment Distribution) ---
     if cfg.get("project.wandb_logging"):
