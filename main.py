@@ -30,12 +30,17 @@ def load_taxonomy(path):
 def main():
     print("=== HYPE TOPIC DETECTION PIPELINE ===")
 
+    # INITIALIZE WANDB (Global Run)
+    if cfg.get("project.wandb_logging"):
+        main_logger = WandBLogger(
+            job_type="full_pipeline", run_name="hype_analysis_master"
+        )
+        print("--> [WandB] Pipeline run started.")
+
     # Load Paths from Config
     data_path = cfg.get("paths.data")
     cache_path = cfg.get("paths.cache")
     use_cache = cfg.get("preprocessing.use_cache")
-
-    # print(f"=== Selected Model: {MODEL_CHOICE} ===")
 
     loader = DataProcessor(data_path)
     df = None
@@ -76,7 +81,7 @@ def main():
     # --- EDA LOGGING (Sentiment Distribution) ---
     if cfg.get("project.wandb_logging"):
         print("--> [WandB] Logging Sentiment Distribution (EDA)...")
-        logger = WandBLogger(job_type="EDA", run_name="sentiment_analysis_v2")
+        eda_logger = WandBLogger()
 
         # Prepare Data
         sent_counts = df["sentiment"].value_counts().reset_index()
@@ -84,15 +89,13 @@ def main():
 
         # Log Table
         table = wandb.Table(dataframe=sent_counts)
-        logger.log_plot("sentiment_data", table, plot_type="table")
+        eda_logger.log_plot("sentiment_data", table, plot_type="table")
 
         # Log Bar Chart
         bar_plot = wandb.plot.bar(
             table, "sentiment", "count", title="Sentiment Distribution"
         )
-        logger.log_plot("sentiment_dist_plot", bar_plot, plot_type="chart")
-
-        logger.finish()
+        eda_logger.log_plot("sentiment_dist_plot", bar_plot, plot_type="chart")
 
     # 6. FILTER DATASET (STRICTLY NEGATIVE)
     print("--> [Filter] Keeping ONLY Negative reviews for Topic Detection...")
@@ -150,6 +153,10 @@ def main():
 
     else:
         print("--> [Error] Not enough data for topic modeling.")
+
+    if cfg.get("project.wandb_logging"):
+        print("--> [WandB] Run finished.")
+        wandb.finish()
 
 
 if __name__ == "__main__":

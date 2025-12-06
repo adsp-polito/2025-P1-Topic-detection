@@ -35,11 +35,8 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics):
 
     # Log to WandB
     if cfg.get("project.wandb_logging"):
-        # We start a quick run specifically for evaluation metrics
-        # so it doesn't get lost if previous runs are closed.
-        logger = WandBLogger(job_type="evaluation", run_name="eval_metrics")
+        logger = WandBLogger()
         logger.log_metrics({"silhouette_score": score})
-        logger.finish()
 
     return score
 

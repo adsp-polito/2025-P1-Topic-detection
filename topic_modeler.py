@@ -36,7 +36,7 @@ class TopicModeler:
         print(f"--> [BERTopic] Starting run: {run_name} using [{model_type}] config")
 
         # 1. Initialize WandB
-        logger = WandBLogger(job_type="modeling", run_name=run_name)
+        logger = WandBLogger()
 
         # 2. Select and Store Embedding Model
         # We store it in 'self' to access it later for evaluation
@@ -120,5 +120,4 @@ class TopicModeler:
         except Exception as e:
             print(f"--> [Warning] Could not log plots: {e}")
 
-        logger.finish()
         return topic_model, topics, probs

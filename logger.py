@@ -8,23 +8,22 @@ class WandBLogger:
     Wrapper for WandB logging to centralize logic and configurations.
     """
 
-    def __init__(self, job_type: str, run_name: str = None):
+    def __init__(self, job_type: str = "pipeline", run_name: str = None):
         self.enabled = cfg.get("project.wandb_logging", False)
         self.run = None
 
         if self.enabled:
-            # If a run is already active, we can attach to it or start a new one depending on logic.
-            # Here we ensure we start a new run for distinct phases if one isn't active.
-            if wandb.run is None:
+            # Is a run already active?
+            if wandb.run is not None:
+                self.run = wandb.run
+            else:
+                # No run active, start the "Main" run
                 self.run = wandb.init(
                     project=cfg.get("project.name"),
                     job_type=job_type,
                     name=run_name or f"{job_type}_run",
-                    # Log the full configuration to track experiments
                     config=cfg.data,
                 )
-            else:
-                self.run = wandb.run
 
     def log_metrics(self, metrics: dict):
         """Logs a dictionary of scalar metrics."""
