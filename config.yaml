@@ -7,8 +7,8 @@ paths:
   data: "./data/dataset_v2.xlsx"
   taxonomy: "./data/taxonomy_v2.xlsx"
   cache: "./data/cached_preprocessed_data.pkl"
-  output_topics: "results_topics.xlsx"
-  output_mapping: "taxonomy_comparison.xlsx"
+  output_topics: "./out/results_topics.xlsx"
+  output_mapping: "./out/taxonomy_comparison.xlsx"
 
 preprocessing:
   use_cache: true
@@ -25,12 +25,12 @@ sentiment:
 
 topic_modeling:
   # Options: "multilingual" (SOTA) or "italian"
-  # language: "multilingual"
-  # model_choice: "multilingual"
-  # embedding_model: "paraphrase-multilingual-MiniLM-L12-v2"
-  language: "italian"
-  model_choice: "italian_sbert"
-  embedding_model: "nickprock/sentence-bert-base-italian-uncased"
+  language: "multilingual"
+  model_choice: "multilingual"
+  embedding_model: "paraphrase-multilingual-MiniLM-L12-v2"
+  # language: "italian"
+  # model_choice: "italian_sbert"
+  # embedding_model: "nickprock/sentence-bert-base-italian-uncased"
 
   # UMAP (Dimensionality Reduction)
   umap:
