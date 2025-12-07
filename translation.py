@@ -105,9 +105,9 @@ class TranslatorModule:
                 with torch.no_grad():
                     generated_tokens = self.nllb_model.generate(
                         **inputs,
-                        forced_bos_token_id=self.nllb_tokenizer.lang_code_to_id[
+                        forced_bos_token_id=self.nllb_tokenizer.convert_tokens_to_ids(
                             self.target_lang
-                        ],
+                        ),
                         max_length=self.conf.get("max_length", 128),
                     )
 
