@@ -1,20 +1,29 @@
+# --- Core Data Science ---
 pandas
 numpy
-bertopic
-langdetect
-seaborn
 scikit-learn
-plotly
 tqdm
-deep_translator
 openpyxl
+
+# --- NLP & Deep Learning (SOTA Translation/Detection) ---
 torch
 transformers
-sentencepiece
-accelerate
-wandb
+sentencepiece     # Required for NLLB/XLM-R tokenizers
+accelerate        # Optimizes inference on GPU/CPU
 sentence-transformers
+nltk
+emoji
+
+# --- Topic Modeling ---
+bertopic
 umap-learn
 hdbscan
-emoji
-nltk
+safetensors       # For secure/fast model saving
+
+# --- Configuration & Logging ---
+pyyaml            # For config.yaml
+wandb
+
+# --- Visualization ---
+plotly
+seaborn
