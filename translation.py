@@ -53,7 +53,7 @@ class TranslatorModule:
 
         # Run pipeline
         results = self.detector(texts, batch_size=self.batch_size, truncation=True)
-        self.df["detected_lang"] = [res["label"] for res in results]
+        self.df["detected_lang"] = [res[0]["label"] for res in results]
 
         top_langs = self.df["detected_lang"].value_counts().head(5).to_dict()
         print(f"    Top languages found: {top_langs}")
