@@ -63,12 +63,9 @@ def main():
         # 1. LOAD DATA
         df = loader.load_data()
 
-        # 2. DETECT LANGUAGE
-        df = loader.detect_language(column="review")
-
-        # 3. TRANSLATE (Non-IT -> IT)
+        # 2. & 3. SOTA DETECTION & TRANSLATION (Batch Processed)
         translator = TranslatorModule(df)
-        df = translator.translate_non_italian(text_col="review")
+        df = translator.detect_and_translate(text_col="review")
 
         # 4. TEXT CLEANING & EMOJI CONVERSION
         # Clean *before* sentiment analysis so emojis become text (e.g., ":thumbs_down:")
