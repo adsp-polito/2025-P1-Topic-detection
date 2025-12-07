@@ -1,3 +1,5 @@
+import os
+
 import wandb
 
 from config import cfg
@@ -46,6 +48,25 @@ class WandBLogger:
                 self.run.log({plot_name: plot_obj})
             elif plot_type == "chart":
                 self.run.log({plot_name: plot_obj})
+
+    def log_artifact(self, path: str, type: str, name: str, description: str = None):
+        """
+        Logs a file or directory as a WandB Artifact (versioned data/model).
+        """
+        if self.enabled and self.run:
+            print(f"--> [WandB] Uploading artifact: {name}...")
+            artifact = wandb.Artifact(name=name, type=type, description=description)
+
+            if os.path.isdir(path):
+                artifact.add_dir(path)
+            elif os.path.isfile(path):
+                artifact.add_file(path)
+            else:
+                print(f"    [Warning] Path not found: {path}")
+                return
+
+            self.run.log_artifact(artifact)
+            print("    Upload complete.")
 
     def finish(self):
         """Closes the run."""

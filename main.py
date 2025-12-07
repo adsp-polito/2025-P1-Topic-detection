@@ -18,8 +18,9 @@ def load_taxonomy(path):
     try:
         # Assuming the CSV has a header. We look for the first column.
         df_tax = pd.read_excel(path)
+        df_tax = df_tax[~df_tax["DEPRECATED"]]
         # Get the first column as a list of strings
-        labels = df_tax.iloc[:, 0].astype(str).unique().tolist()
+        labels = df_tax.iloc[1:, 0].astype(str).unique().tolist()
         print(f"--> [Taxonomy] Loaded {len(labels)} labels from {path}")
         return labels
     except Exception as e:
@@ -36,6 +37,10 @@ def main():
             job_type="full_pipeline", run_name="hype_analysis_master"
         )
         print("--> [WandB] Pipeline run started.")
+
+    # Create 'out' folder if it doesn't exist
+    os.makedirs("out", exist_ok=True)
+    os.makedirs(os.path.dirname(cfg.get("paths.cache")), exist_ok=True)
 
     # Load Paths from Config
     data_path = cfg.get("paths.data")
@@ -125,8 +130,29 @@ def main():
         # Save Basic Results
         df["topic"] = topics
         out_file_topics = cfg.get("paths.output_topics")
+        os.makedirs(os.path.dirname(out_file_topics), exist_ok=True)
+
         df.to_excel(out_file_topics, index=False)
         print(f"--> [Done] Basic results saved to {out_file_topics}")
+
+        if main_logger:
+            main_logger.log_artifact(
+                out_file_topics,
+                "dataset",
+                "labeled_reviews",
+                "Negative reviews with Topic IDs",
+            )
+
+        model_save_path = "./out/bertopic_model"
+        tm.save_model(model_save_path)
+
+        if main_logger:
+            main_logger.log_artifact(
+                model_save_path,
+                "model",
+                "hype_bertopic_model",
+                "BERTopic model trained on negative reviews",
+            )
 
         # --- EVALUATION PHASE ---
 
@@ -150,6 +176,14 @@ def main():
             out_file_map = cfg.get("paths.output_mapping")
             mapping_df.to_excel(out_file_map, index=False)
             print(f"--> [Done] Taxonomy comparison saved to {out_file_map}")
+
+            if main_logger:
+                main_logger.log_artifact(
+                    out_file_map,
+                    "dataset",
+                    "taxonomy_mapping",
+                    "Topics mapped to Golden Labels",
+                )
 
     else:
         print("--> [Error] Not enough data for topic modeling.")
