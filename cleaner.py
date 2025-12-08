@@ -2,15 +2,8 @@ import re
 from typing import Optional
 
 import emoji
-import numpy as np
 import pandas as pd
-from langdetect import DetectorFactory, detect
 from tqdm import tqdm
-
-from config import cfg
-
-# Ensure reproducibility for language detection
-DetectorFactory.seed = cfg.get("project.seed", 0)
 
 
 class DataProcessor:
@@ -32,22 +25,6 @@ class DataProcessor:
             return self.df
         except Exception as e:
             raise ValueError(f"Failed to load data: {e}")
-
-    def detect_language(self, column: str = "review") -> pd.DataFrame:
-        """Detects language for the specified column."""
-        if self.df is None:
-            raise ValueError("Data not loaded.")
-
-        print("--> [LangDetect] Detecting languages...")
-
-        def safe_detect(text):
-            try:
-                return detect(text)
-            except:
-                return np.nan
-
-        self.df["detected_lang"] = self.df[column].progress_apply(safe_detect)
-        return self.df
 
     def basic_cleaning(
         self, text_column: str = "review", target_column: str = "clean_text"

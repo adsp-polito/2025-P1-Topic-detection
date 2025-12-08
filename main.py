@@ -11,24 +11,13 @@ from logger import WandBLogger
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
-
-
-def load_taxonomy(path):
-    """Loads the unique labels from the taxonomy CSV."""
-    try:
-        # Assuming the CSV has a header. We look for the first column.
-        df_tax = pd.read_excel(path)
-        df_tax = df_tax[~df_tax["DEPRECATED"]]
-        # Get the first column as a list of strings
-        labels = df_tax.iloc[1:, 0].astype(str).unique().tolist()
-        print(f"--> [Taxonomy] Loaded {len(labels)} labels from {path}")
-        return labels
-    except Exception as e:
-        print(f"--> [Error] Could not load taxonomy: {e}")
-        return []
+from utils import ensure_directories, load_taxonomy, seed_everything
 
 
 def main():
+    seed_val = cfg.get("project.seed", 42)
+    seed_everything(seed_val)
+
     print("=== HYPE TOPIC DETECTION PIPELINE ===")
 
     # INITIALIZE WANDB (Global Run)
@@ -40,7 +29,14 @@ def main():
 
     # Create 'out' folder if it doesn't exist
     os.makedirs("out", exist_ok=True)
-    os.makedirs(os.path.dirname(cfg.get("paths.cache")), exist_ok=True)
+    ensure_directories(
+        [
+            cfg.get("paths.cache"),
+            cfg.get("paths.output_topics"),
+            cfg.get("paths.output_mapping"),
+            "./out/bertopic_model/",
+        ]
+    )
 
     # Load Paths from Config
     data_path = cfg.get("paths.data")
@@ -63,12 +59,9 @@ def main():
         # 1. LOAD DATA
         df = loader.load_data()
 
-        # 2. DETECT LANGUAGE
-        df = loader.detect_language(column="review")
-
-        # 3. TRANSLATE (Non-IT -> IT)
+        # 2. & 3. SOTA DETECTION & TRANSLATION (Batch Processed)
         translator = TranslatorModule(df)
-        df = translator.translate_non_italian(text_col="review")
+        df = translator.detect_and_translate(text_col="review")
 
         # 4. TEXT CLEANING & EMOJI CONVERSION
         # Clean *before* sentiment analysis so emojis become text (e.g., ":thumbs_down:")
@@ -182,7 +175,6 @@ def main():
                     out_file_map,
                     "dataset",
                     "taxonomy_mapping",
-                    "Topics mapped to Golden Labels",
                 )
 
     else:
@@ -193,5 +185,7 @@ def main():
         wandb.finish()
 
 
+if __name__ == "__main__":
+    main()
 if __name__ == "__main__":
     main()

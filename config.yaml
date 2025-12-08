@@ -17,6 +17,65 @@ preprocessing:
   # Duplicate removal threshold (0.90 - 0.95 recommended)
   dedup_threshold: 0.92
 
+translation:
+  # Batch size for translation (can be lower than sentiment if GPU memory is tight)
+  batch_size: 16
+
+  # Max length for the generated text
+  max_length: 128
+
+  # Models
+  detection_model: "papluca/xlm-roberta-base-language-detection"
+  translation_model: "facebook/nllb-200-distilled-600M"
+
+  # Target language code for NLLB (Italian)
+  target_lang: "ita_Latn"
+
+  # Mapping: ISO-2 (Detector Output) -> NLLB Code (Translator Input)
+  # Covers common European & World languages
+  iso_to_nllb_mapping:
+    # Supported by papluca model (20 langs)
+    ar: "arb_Arab" # Arabic
+    bg: "bul_Cyrl" # Bulgarian
+    de: "deu_Latn" # German
+    el: "ell_Grek" # Greek
+    en: "eng_Latn" # English
+    es: "spa_Latn" # Spanish
+    fr: "fra_Latn" # French
+    hi: "hin_Deva" # Hindi
+    it: "ita_Latn" # Italian
+    ja: "jpn_Jpan" # Japanese
+    nl: "nld_Latn" # Dutch
+    pl: "pol_Latn" # Polish
+    pt: "por_Latn" # Portuguese
+    ru: "rus_Cyrl" # Russian
+    sw: "swh_Latn" # Swahili
+    th: "tha_Thai" # Thai
+    tr: "tur_Latn" # Turkish
+    ur: "urd_Arab" # Urdu
+    vi: "vie_Latn" # Vietnamese
+    zh: "zho_Hans" # Chinese (Simplified)
+
+    # Extras (Common in EU) - in case detector is swapped/upgraded
+    cs: "ces_Latn" # Czech
+    da: "dan_Latn" # Danish
+    et: "est_Latn" # Estonian
+    fi: "fin_Latn" # Finnish
+    ga: "gle_Latn" # Irish
+    hr: "hrv_Latn" # Croatian
+    hu: "hun_Latn" # Hungarian
+    lt: "lit_Latn" # Lithuanian
+    lv: "lav_Latn" # Latvian
+    mt: "mlt_Latn" # Maltese
+    ro: "ron_Latn" # Romanian
+    sk: "slk_Latn" # Slovak
+    sl: "slv_Latn" # Slovenian
+    sv: "swe_Latn" # Swedish
+    uk: "ukr_Cyrl" # Ukrainian
+    no: "nob_Latn" # Norwegian (Bokmal)
+    id: "ind_Latn" # Indonesian
+    ko: "kor_Hang" # Korean
+
 sentiment:
   # Models used in the ensemble
   feelit_model: "MilaNLProc/feel-it-italian-sentiment"
