@@ -9,4 +9,4 @@ The project is currently a work in progress: several modules are under active de
 
 All checkpoint presentations are available in:
 
-docs/presentation/
+docs/presentations/
