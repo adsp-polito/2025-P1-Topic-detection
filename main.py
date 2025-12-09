@@ -6,6 +6,7 @@ import wandb
 from cleaner import DataProcessor
 from config import cfg
 from duplicate_remover import DuplicateRemover
+from mwe import MWEExtractor
 from evaluation import TaxonomyMapper, calculate_coherence_metrics
 from logger import WandBLogger
 from sentiment_analyzer import SentimentEnsemble
@@ -110,8 +111,14 @@ def main():
     deduplicator = DuplicateRemover()
     df = deduplicator.remove_duplicates(df, text_col="clean_text")
 
-    # 8. TOPIC DETECTION (BERTopic)
-    docs = df["clean_text"].tolist()
+    # 8. MULTI-WORD EXPRESSIONS 
+    mwe_extractor = MWEExtractor(df=df)
+    mwe_list = mwe_extractor.extract_mwe()
+    mwe_list.to_excel("./data/mwe_list.xlsx", index=False)
+    df = mwe_extractor.apply_mwe()
+
+    # 9. TOPIC DETECTION (BERTopic)
+    docs = df["clean_text_mwe"].tolist()
     print(f"--> [Topic Modeling] Starting run on {len(docs)} negative reviews...")
 
     if len(docs) > 10:
@@ -185,7 +192,5 @@ def main():
         wandb.finish()
 
 
-if __name__ == "__main__":
-    main()
 if __name__ == "__main__":
     main()

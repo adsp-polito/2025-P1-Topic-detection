@@ -4,7 +4,7 @@ from nltk.collocations import BigramCollocationFinder, BigramAssocMeasures
 from collections import Counter
 
 class MWEExtractor:
-    def __init__(self, df=pd.DataFrame, spacy_model="it_core_news_lg", freq_filter=20, top_k=50):
+    def __init__(self, df : pd.DataFrame, spacy_model="it_core_news_lg", freq_filter=20, top_k=50):
         """
         Initialize the extractor.
         - freq_filter: minimum frequency for a bigram to be considered
@@ -16,12 +16,16 @@ class MWEExtractor:
         self.bigrams_lemma = set()
         self.df = df
 
-    def extract_mwe(self):
+    def extract_mwe(self) -> pd.DataFrame:
+        """
+        Extracts the list of MWEs (pairs of words that commonly appear together)
+        """
+        print("--> [Extractor] Extracting MWEs...")
 
-        self.df["review_translated"] = self.df["review_translated"].astype(str)
-        texts = self.df["review_translated"].str.lower().tolist()
+        self.df["clean_text"] = self.df["clean_text"].astype(str)
+        texts = self.df["clean_text"].str.lower().tolist()
 
-        # 1) Preprocess sentences into list of (lemma, pos)
+        # Preprocess sentences into list of (lemma, pos)
         processed_sentences = []
         for doc in self.nlp.pipe(texts, disable=["parser", "ner"]):
             tokens = [
@@ -29,11 +33,11 @@ class MWEExtractor:
                 for token in doc
                 if token.is_alpha
                 and not token.is_stop
-                and len(token) > 2
+                and len(token.text) > 2
             ]
             processed_sentences.append(tokens)
 
-        # 2) Extract bigram candidates (frequency + PMI + POS patterns)
+        # Extract bigram candidates (frequency + PMI + POS patterns)
         bigram_measures = BigramAssocMeasures()
 
         all_tokens = [lemma for sent in processed_sentences for (lemma, pos) in sent]
@@ -70,46 +74,42 @@ class MWEExtractor:
         return pd.DataFrame(mwe_candidates, columns=["lemma1", "lemma2", "count"])
         
 
-
-    def merge_sentence(self, text):
-    # 3) Merge lemma-based bigrams inside a sentence
+    def merge_sentence(self, text: str) -> str:
+        """
+        Merges lemma-based bigrams inside a sentence
+        """
         doc = self.nlp(text)
-        lemmas = [t.lemma_.lower() for t in doc]
+        original_tokens = [t.text for t in doc]                
+        lemmas = [t.lemma_.lower() for t in doc]               
 
         merged = []
         i = 0
-        while i < len(lemmas):
+
+        while i < len(doc):
+            # if consecutives lemmas form a MWE --> merges the lemmas to form the MWE with original tokens
             if (
-                i < len(lemmas) - 1
+                i < len(doc) - 1
                 and (lemmas[i], lemmas[i+1]) in self.bigrams_lemma
             ):
-                merged.append(lemmas[i] + "-" + lemmas[i+1])
+                merged.append(original_tokens[i] + "_" + original_tokens[i+1])
                 i += 2
+
             else:
-                merged.append(lemmas[i])
+                merged.append(original_tokens[i])
                 i += 1
+
         return " ".join(merged)
+
         
+    def apply_mwe(self) -> pd.DataFrame:
+        """
+        Applies MWE merging to an entire dataframe column
+        """
+        print("--> [Extractor] Applying MWEs...")
 
-    # 4) Apply MWE merging to an entire dataframe column
-    def apply_mwe(self, df, text_column="review_translated", output_column="review_mwe"):
-        df[output_column] = df[text_column].astype(str).apply(self.merge_sentence)
-        return df
+        self.df["clean_text_mwe"] = self.df["clean_text"].astype(str).apply(self.merge_sentence)
+        changed_rows = (self.df["clean_text_mwe"] != self.df["clean_text"]).sum()
 
+        print(f"--> [Extractor] {changed_rows} reviews where updated with MWEs.")
 
-if __name__ == "__main__":
-    df = pd.read_excel("./data/reviews_cleaned_translated.xlsx")
-
-    extractor = MWEExtractor(df)
-
-    print("Extracting MWEs...")
-    candidates = extractor.extract_mwe()
-    print("MWE candidates:", candidates)
-
-    mwe_list = f"./data/mwe_list.xlsx"
-    candidates.to_excel(mwe_list, index=False)
-
-    print("Applying MWE merging...")
-    df = extractor.apply_mwe(df)
-
-    print(df.head())
+        return self.df

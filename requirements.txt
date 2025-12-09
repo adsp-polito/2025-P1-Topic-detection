@@ -13,6 +13,8 @@ accelerate        # Optimizes inference on GPU/CPU
 sentence-transformers
 nltk
 emoji
+spacy
+it_core_news_lg @ https://github.com/explosion/spacy-models/releases/download/it_core_news_lg-3.7.2/it_core_news_lg-3.7.2-py3-none-any.whl
 
 # --- Topic Modeling ---
 bertopic
