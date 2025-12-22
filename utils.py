@@ -28,14 +28,14 @@ def seed_everything(seed: int = 42):
     print(f"--> [Reproducibility] Global seed set to {seed}")
 
 
-def load_taxonomy(path: str) -> list:
+def load_taxonomy(path: str) -> pd.DataFrame:
     """
-    Loads the unique labels from the taxonomy Excel file.
+    Loads the taxonomy and prepares it for semantic comparison.
     Filters out rows marked as DEPRECATED.
     """
     if not os.path.exists(path):
         print(f"--> [Error] Taxonomy file not found at: {path}")
-        return []
+        return pd.DataFrame()
 
     try:
         df_tax = pd.read_excel(path)
@@ -43,13 +43,30 @@ def load_taxonomy(path: str) -> list:
         if "DEPRECATED" in df_tax.columns:
             df_tax = df_tax[~df_tax["DEPRECATED"]]
 
-        # Get the first column as a list of strings
-        labels = df_tax.iloc[1:, 0].astype(str).unique().tolist()
-        print(f"--> [Taxonomy] Loaded {len(labels)} labels from {path}")
-        return labels
+        # Intentional skip of first row as per user requirement
+        df_tax = df_tax.iloc[1:]
+
+        # Standardize columns
+        # We rename the first two columns to ensure consistent access
+        df_tax.rename(
+            columns={df_tax.columns[0]: "Label", df_tax.columns[2]: "Description"},
+            inplace=True,
+        )
+
+        # Create a "Combined" text field for better embedding
+        # Format: "Label: Description"
+        df_tax["Embedding_Text"] = df_tax.apply(
+            lambda x: f"{x['Label']}: {x['Description']}"
+            if pd.notnull(x["Description"])
+            else str(x["Label"]),
+            axis=1,
+        )
+
+        print(f"--> [Taxonomy] Loaded {len(df_tax)} labels from {path}")
+        return df_tax[["Label", "Description", "Embedding_Text"]]
     except Exception as e:
         print(f"--> [Error] Could not load taxonomy: {e}")
-        return []
+        return pd.DataFrame()
 
 
 def ensure_directories(paths: list):

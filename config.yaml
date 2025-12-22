@@ -120,3 +120,8 @@ topic_modeling:
     - "paga"
     - "conto"
     - "banca"
+
+baselines:
+  n_topics: 10
+  n_top_words: 15
+  random_state: 42

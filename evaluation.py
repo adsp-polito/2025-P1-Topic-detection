@@ -43,7 +43,7 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics):
 
 class TaxonomyMapper:
     """
-    Compares discovered BERTopic topics with a provided set of 'Golden Labels' (Taxonomy)
+    Compares discovered BERTopic topics with a provided set of labels (Taxonomy)
     using Semantic Similarity.
     """
 
@@ -51,11 +51,16 @@ class TaxonomyMapper:
         # We reuse the same embedding model used for BERTopic
         self.embedding_model = embedding_model
 
-    def map_topics_to_taxonomy(self, topic_model, taxonomy_labels: list):
+    def map_topics_to_taxonomy(self, topic_model, taxonomy_df: pd.DataFrame):
         """
         Returns a DataFrame showing the best match for each discovered topic.
+        Expects taxonomy_df to have columns: ['Label', 'Embedding_Text']
         """
         print("--> [Evaluation] Mapping discovered topics to provided Taxonomy...")
+
+        if taxonomy_df.empty:
+            print("    [Warning] Taxonomy DataFrame is empty. Skipping.")
+            return pd.DataFrame()
 
         # 1. Get Discovered Topic Representations
         topic_info = topic_model.get_topic_info()
@@ -65,9 +70,9 @@ class TaxonomyMapper:
         discovered_texts = []
         topic_ids = []
 
-        # Construct a string representation for each topic (using top 5 words)
+        # Construct a string representation for each topic (using top 10 words for better context)
         for t_id in topic_info["Topic"]:
-            words = [word for word, _ in topic_model.get_topic(t_id)[:5]]
+            words = [word for word, _ in topic_model.get_topic(t_id)[:10]]
             discovered_texts.append(" ".join(words))
             topic_ids.append(t_id)
 
@@ -75,16 +80,19 @@ class TaxonomyMapper:
             print("    [Warning] No topics found (only noise). Skipping mapping.")
             return pd.DataFrame()
 
-        # 2. Embed Both Lists
-        print("    Embedding topics and taxonomy labels...")
+        # 2. Embed Both Lists, we embed the "Combined" text (Label + Description) from the taxonomy
+        print("    Embedding topics and taxonomy descriptions...")
         dt_embeddings = self.embedding_model.encode(discovered_texts)
-        tax_embeddings = self.embedding_model.encode(taxonomy_labels)
+        tax_embeddings = self.embedding_model.encode(
+            taxonomy_df["Embedding_Text"].tolist()
+        )
 
         # 3. Calculate Cosine Similarity Matrix
         similarity_matrix = cosine_similarity(dt_embeddings, tax_embeddings)
 
         # 4. Find Best Matches
         results = []
+        taxonomy_labels = taxonomy_df["Label"].tolist()
 
         for idx, t_id in enumerate(topic_ids):
             # Find index of highest score in the row
@@ -98,7 +106,7 @@ class TaxonomyMapper:
                     "Top_Words": discovered_texts[idx],
                     "Best_Match_Label": best_label,
                     "Similarity_Score": round(best_score, 4),
-                    "Match_Type": "Strong" if best_score > 0.6 else "Weak/New",
+                    "Match_Type": "Strong" if best_score > 0.55 else "Weak/New",
                 }
             )
 

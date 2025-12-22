@@ -6,9 +6,9 @@ import wandb
 from cleaner import DataProcessor
 from config import cfg
 from duplicate_remover import DuplicateRemover
-from mwe import MWEExtractor
 from evaluation import TaxonomyMapper, calculate_coherence_metrics
 from logger import WandBLogger
+from mwe import MWEExtractor
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
@@ -111,7 +111,7 @@ def main():
     deduplicator = DuplicateRemover()
     df = deduplicator.remove_duplicates(df, text_col="clean_text")
 
-    # 8. MULTI-WORD EXPRESSIONS 
+    # 8. MULTI-WORD EXPRESSIONS
     mwe_extractor = MWEExtractor(df=df)
     mwe_list = mwe_extractor.extract_mwe()
     mwe_list.to_excel("./data/mwe_list.xlsx", index=False)
@@ -129,6 +129,22 @@ def main():
 
         # Save Basic Results
         df["topic"] = topics
+
+        n_outliers = len(df[df["topic"] == -1])
+        outlier_perc = (n_outliers / len(df)) * 100
+        print(
+            f"--> [Evaluation] Outliers (Topic -1): {n_outliers} ({outlier_perc:.2f}%)"
+        )
+
+        if cfg.get("project.wandb_logging") and main_logger:
+            main_logger.log_metrics({"outlier_percentage": outlier_perc})
+
+        # If outliers > 40%, warn the user
+        if outlier_perc > 40:
+            print(
+                "    [WARNING] High outlier count! Consider lowering 'min_cluster_size' in config.yaml"
+            )
+
         out_file_topics = cfg.get("paths.output_topics")
         os.makedirs(os.path.dirname(out_file_topics), exist_ok=True)
 
@@ -157,7 +173,7 @@ def main():
         # --- EVALUATION PHASE ---
 
         # A. Quantitative Metric (Silhouette Score)
-        # We re-encode docs to get embeddings (fast with cached model)
+        # Re-encode docs to get embeddings (fast with cached model)
         print("--> [Evaluation] Generating embeddings for scoring...")
         embeddings = tm.embedding_model.encode(docs, show_progress_bar=False)
 
@@ -166,11 +182,13 @@ def main():
 
         # B. Taxonomy Mapping
         tax_path = cfg.get("paths.taxonomy")
-        provided_labels = load_taxonomy(tax_path)
 
-        if provided_labels:
+        taxonomy_df = load_taxonomy(tax_path)
+
+        if not taxonomy_df.empty:
             mapper = TaxonomyMapper(embedding_model=tm.embedding_model)
-            mapping_df = mapper.map_topics_to_taxonomy(model, provided_labels)
+
+            mapping_df = mapper.map_topics_to_taxonomy(model, taxonomy_df)
 
             print(mapping_df.head())
             out_file_map = cfg.get("paths.output_mapping")
@@ -183,9 +201,8 @@ def main():
                     "dataset",
                     "taxonomy_mapping",
                 )
-
-    else:
-        print("--> [Error] Not enough data for topic modeling.")
+        else:
+            print("--> [Warning] No taxonomy loaded. Skipping mapping.")
 
     if cfg.get("project.wandb_logging"):
         print("--> [WandB] Run finished.")
