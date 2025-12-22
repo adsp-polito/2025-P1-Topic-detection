@@ -1,7 +1,6 @@
 import os
 
 import pandas as pd
-import wandb
 
 from baseline import BaselineModeler
 from cleaner import DataProcessor
@@ -16,21 +15,29 @@ from utils import ensure_directories, seed_everything
 
 def plot_top_words(model_name, results_df):
     """
-    Helper to create WandB bar charts for top words in each topic.
-    Parses the "Top_Words" string (comma-separated) back into counts/lists.
-    Since we don't have exact counts from the summary string,
-    we visualizes the rank or just list them in a table.
-
-    For a better visual, we will rely on the Table we log,
-    but we can try to log a basic chart if needed.
-    Here we stick to a rich Table which is best for text lists.
+    Creates a styled HTML table that shows up immediately in the Dashboard.
     """
-    # Filter for the specific model
+    # Filter for the specific model (LDA or NMF)
     df = results_df[results_df["Model"] == model_name].copy()
 
-    # Create a WandB Table
-    table = wandb.Table(dataframe=df)
-    return table
+    # Select only relevant columns
+    df = df[["Topic_ID", "Top_Words"]]
+
+    # Convert to HTML with some basic styling
+    html_string = df.to_html(index=False, justify="left", border=0)
+
+    # Add a title and style
+    styled_html = f"""
+    <h3>{model_name} Top Words</h3>
+    <style>
+        table {{ font-family: Arial, sans-serif; border-collapse: collapse; width: 100%; }}
+        th {{ background-color: #f2f2f2; padding: 8px; text-align: left; }}
+        td {{ border-bottom: 1px solid #ddd; padding: 8px; }}
+        tr:hover {{ background-color: #f5f5f5; }}
+    </style>
+    {html_string}
+    """
+    return styled_html
 
 
 def run_baselines():
@@ -142,8 +149,8 @@ def run_baselines():
         lda_table = plot_top_words("LDA", df_results)
         nmf_table = plot_top_words("NMF", df_results)
 
-        logger.log_plot("lda_topics_table", lda_table, plot_type="table")
-        logger.log_plot("nmf_topics_table", nmf_table, plot_type="table")
+        logger.log_plot("lda_topics_table", lda_table, plot_type="html")
+        logger.log_plot("nmf_topics_table", nmf_table, plot_type="html")
 
         # C. Log Metrics
         logger.log_metrics(
