@@ -102,7 +102,7 @@ topic_modeling:
   # If you get < 10 topics: Lower min_cluster_size in config.yaml (e.g., try 10 or 7).
   # If you get > 50 topics: Increase min_cluster_size to merge smaller micro-clusters.
   hdbscan:
-    min_cluster_size: 25
+    min_cluster_size: 15
     cluster_selection_method: "eom"
 
   # Vectorizer
