@@ -91,19 +91,31 @@ topic_modeling:
   # model_choice: "italian_sbert"
   # embedding_model: "nickprock/sentence-bert-base-italian-uncased"
 
-  # UMAP (Dimensionality Reduction)
+  # Dimensionality Reduction
+  #UMAP
   umap:
     n_neighbors: 15
     n_components: 5
     min_dist: 0.0
     metric: "cosine"
+  #KernelPCA
+  kernel_pca:
+    n_components: 5        
+    kernel: rbf  
 
-  # HDBSCAN (Clustering)
+  # Clustering
+  # HBDSCAN
   # If you get < 10 topics: Lower min_cluster_size in config.yaml (e.g., try 10 or 7).
   # If you get > 50 topics: Increase min_cluster_size to merge smaller micro-clusters.
   hdbscan:
-    min_cluster_size: 25
+    min_cluster_size: 20
     cluster_selection_method: "eom"
+  #K-means
+  kmeans:
+    n_clusters: 30
+  #Spectral clustering
+  spectral:
+    n_clusters: 15
 
   # Vectorizer
   min_df: 2
