@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 import wandb
+import nltk   
 
 from cleaner import DataProcessor
 from config import cfg
@@ -13,6 +14,7 @@ from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
 from utils import ensure_directories, load_taxonomy, seed_everything
+from nltk.corpus import stopwords
 
 
 def main():
@@ -24,7 +26,7 @@ def main():
     # INITIALIZE WANDB (Global Run)
     if cfg.get("project.wandb_logging"):
         main_logger = WandBLogger(
-            job_type="full_pipeline", run_name="hype_analysis_master"
+            job_type="full_pipeline", run_name="hype_analysis_UnionStopWord"
         )
         print("--> [WandB] Pipeline run started.")
 
@@ -117,8 +119,63 @@ def main():
     mwe_list.to_excel("./data/mwe_list.xlsx", index=False)
     df = mwe_extractor.apply_mwe()
 
-    # 9. TOPIC DETECTION (BERTopic)
-    docs = df["clean_text_mwe"].tolist()
+    # 9. STOPWORD REMOVAL COMPARISON
+
+    nltk.download("stopwords", quiet=True)
+    italian_stopwords = set(stopwords.words("italian"))
+
+    # Load TF-IDF stopwords (domain-specific)
+    tfidf_stopwords_path = "./data/tfidf_stopwords.txt"
+    with open(tfidf_stopwords_path, "r", encoding="utf-8") as f:
+        tfidf_stopwords = set(line.strip() for line in f if line.strip())
+
+    print(f"[Stopwords] Italian: {len(italian_stopwords)}")
+    print(f"[Stopwords] TF-IDF: {len(tfidf_stopwords)}")
+
+    def remove_stopwords(text: str, stopword_set: set):
+        return " ".join(
+            [w for w in text.split() if w.lower() not in stopword_set]
+        )
+
+    # -----------------------------------------------------
+    # CHOOSE ONE SETTING (comment / uncomment)
+    # -----------------------------------------------------
+
+    # A) NO stopword removal (baseline)
+    #docs = df["clean_text_mwe"].tolist()
+    #print("[Stopwords] CLASSIC: no stopword removal")
+
+    #B) Italian stopwords only (classic NLP)
+    #docs = [
+    #     remove_stopwords(text, italian_stopwords)
+    #     for text in df["clean_text_mwe"]
+    #]
+    #print("[Stopwords] CLASSIC: Italian stopwords removed")
+
+    #C) TF-IDF stopwords only (domain-driven)
+    #docs = [
+    #     remove_stopwords(text, tfidf_stopwords)
+    #     for text in df["clean_text_mwe"]
+    #]
+    #print("[Stopwords] CLASSIC: TF-IDF stopwords removed")
+
+    # D) Italian − TF-IDF (delta)
+    #delta_stopwords = tfidf_stopwords - italian_stopwords
+    #docs = [
+    #     remove_stopwords(text, delta_stopwords)
+    #     for text in df["clean_text_mwe"]
+    # ]
+    #print("[Stopwords] DELTA:  TF-IDF minus Italian stopwords removed")
+
+    #E) Italian + TF-IDF (delta)
+    union_stopwords = set(italian_stopwords) | set(tfidf_stopwords)
+    docs = [
+         remove_stopwords(text, union_stopwords)
+         for text in df["clean_text_mwe"]
+    ]
+    print("[Stopwords] UNION:  TF-IDF and Italian stopwords removed")
+
+    # 10. TOPIC DETECTION (BERTopic)
     print(f"--> [Topic Modeling] Starting run on {len(docs)} negative reviews...")
 
     if len(docs) > 10:

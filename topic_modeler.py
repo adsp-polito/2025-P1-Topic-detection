@@ -197,4 +197,3 @@ class TopicModeler:
             print(f"--> [BERTopic] Model saved locally to {path}")
         else:
             print("--> [Error] No model to save. Run .run() first.")
-
