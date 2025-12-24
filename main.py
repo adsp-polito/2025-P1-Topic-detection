@@ -124,8 +124,8 @@ def main():
     if len(docs) > 10:
         tm = TopicModeler()
 
-        # Run Modeling
-        model, topics, probs = tm.run(docs)
+        # Run Modeling: choose among "umap_hdbscan", "kernelpca_spectral", "kernelpca_kmeans", "umap_spectral"
+        model, topics, probs = tm.run(docs, architecture_name="umap_hdbscan", logger=main_logger)
 
         # Save Basic Results
         df["topic"] = topics
@@ -178,7 +178,7 @@ def main():
         embeddings = tm.embedding_model.encode(docs, show_progress_bar=False)
 
         # Calculate Coherence (Logs to WandB if enabled)
-        calculate_coherence_metrics(model, docs, embeddings, topics)
+        scores = calculate_coherence_metrics(model, docs, embeddings, topics, embedding_model=tm.embedding_model, logger=main_logger)
 
         # B. Taxonomy Mapping
         tax_path = cfg.get("paths.taxonomy")

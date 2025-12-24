@@ -21,6 +21,7 @@ spacy
 bertopic
 umap-learn
 hdbscan
+scikit-learn
 safetensors       # For secure/fast model saving
 
 # --- Configuration & Logging ---
