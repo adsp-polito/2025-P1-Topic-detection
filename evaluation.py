@@ -7,9 +7,12 @@ from config import cfg
 from logger import WandBLogger
 
 
-def calculate_coherence_metrics(topic_model, docs, embeddings, topics):
+def calculate_coherence_metrics(topic_model, docs, embeddings, topics, embedding_model, logger=None):
     """
-    Calculates the Silhouette Score to measure cluster separation.
+    Calculates: 
+    - Silhouette Score --> to measure cluster separation.
+    - Topic Coherence (embedding-based)
+    - Topic Diversity
     Excludes the -1 (noise) topic to get a fair metric of the actual clusters.
     """
     print("--> [Evaluation] Calculating Silhouette Score...")
@@ -27,18 +30,55 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics):
     clean_embeddings = embeddings[mask]
     clean_topics = topics[mask]
 
-    # Calculate Score
+    # Calculate Silhouette Score
     # Range: -1 to 1. Higher is better (more distinct topics).
-    score = silhouette_score(clean_embeddings, clean_topics)
+    silhouette = silhouette_score(clean_embeddings, clean_topics)
 
-    print(f"    Silhouette Score: {score:.4f}")
+    print(f"    Silhouette Score: {silhouette:.4f}")
+
+    # Topic Coherence
+    topic_ids = sorted(set(clean_topics))
+    topic_coherences = []
+
+    for t_id in topic_ids:
+        words = [w for w, _ in topic_model.get_topic(t_id)[:10]]
+        if len(words) < 2:
+            continue
+
+        word_embeddings = embedding_model.encode(words)
+        sim_matrix = cosine_similarity(word_embeddings)
+        mean_sim = np.mean(sim_matrix[np.triu_indices_from(sim_matrix, k=1)])
+        topic_coherences.append(mean_sim)
+
+    topic_coherence = float(np.mean(topic_coherences)) if topic_coherences else 0.0
+    print(f"    Topic Coherence: {topic_coherence:.4f}")
+
+    # Topic Diversity
+    all_words = []
+    for t_id in topic_ids:
+        all_words.extend([w for w, _ in topic_model.get_topic(t_id)[:10]])
+
+    unique_words = set(all_words)
+    topic_diversity = len(unique_words) / len(all_words) if all_words else 0.0
+
+    print(f"    Topic Diversity: {topic_diversity:.4f}")
 
     # Log to WandB
     if cfg.get("project.wandb_logging"):
-        logger = WandBLogger()
-        logger.log_metrics({"silhouette_score": score})
+        if logger is None:
+            print("    Warning: WandBLogger must be passed from main()")
+        else:
+            logger.log_metrics({
+                    "silhouette_score": silhouette,
+                    "topic_coherence": topic_coherence,
+                    "topic_diversity": topic_diversity,
+                    })
 
-    return score
+    return {
+        "silhouette": silhouette,
+        "topic_coherence": topic_coherence,
+        "topic_diversity": topic_diversity,
+    }
 
 
 class TaxonomyMapper:
