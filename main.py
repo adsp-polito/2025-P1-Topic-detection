@@ -1,8 +1,11 @@
 import os
 
 import pandas as pd
+import random
+import numpy as np
 import wandb
-import nltk   
+import ast
+import nltk
 
 from cleaner import DataProcessor
 from config import cfg
@@ -15,6 +18,7 @@ from topic_modeler import TopicModeler
 from translation import TranslatorModule
 from utils import ensure_directories, load_taxonomy, seed_everything
 from nltk.corpus import stopwords
+from multilabel import get_top3_topics_per_review
 
 
 def main():
@@ -22,6 +26,7 @@ def main():
     seed_everything(seed_val)
 
     print("=== HYPE TOPIC DETECTION PIPELINE ===")
+    main_logger=None
 
     # INITIALIZE WANDB (Global Run)
     if cfg.get("project.wandb_logging"):
@@ -137,52 +142,111 @@ def main():
             [w for w in text.split() if w.lower() not in stopword_set]
         )
 
-    # -----------------------------------------------------
-    # CHOOSE ONE SETTING (comment / uncomment)
-    # -----------------------------------------------------
 
-    # A) NO stopword removal (baseline)
-    #docs = df["clean_text_mwe"].tolist()
-    #print("[Stopwords] CLASSIC: no stopword removal")
+    stopword_strategy = "none"
 
-    #B) Italian stopwords only (classic NLP)
-    #docs = [
-    #     remove_stopwords(text, italian_stopwords)
-    #     for text in df["clean_text_mwe"]
-    #]
-    #print("[Stopwords] CLASSIC: Italian stopwords removed")
+    texts = df["clean_text_mwe"].tolist()
 
-    #C) TF-IDF stopwords only (domain-driven)
-    #docs = [
-    #     remove_stopwords(text, tfidf_stopwords)
-    #     for text in df["clean_text_mwe"]
-    #]
-    #print("[Stopwords] CLASSIC: TF-IDF stopwords removed")
+    if stopword_strategy == "none":
+        docs = texts
+        print("[Stopwords] NONE: no stopword removal")
 
-    # D) Italian − TF-IDF (delta)
-    #delta_stopwords = tfidf_stopwords - italian_stopwords
-    #docs = [
-    #     remove_stopwords(text, delta_stopwords)
-    #     for text in df["clean_text_mwe"]
-    # ]
-    #print("[Stopwords] DELTA:  TF-IDF minus Italian stopwords removed")
+    elif stopword_strategy == "italian":
+        docs = [
+            remove_stopwords(text, italian_stopwords)
+            for text in texts
+        ]
+        print("[Stopwords] ITALIAN: Italian stopwords removed")
 
-    #E) Italian + TF-IDF (delta)
-    union_stopwords = set(italian_stopwords) | set(tfidf_stopwords)
-    docs = [
-         remove_stopwords(text, union_stopwords)
-         for text in df["clean_text_mwe"]
-    ]
-    print("[Stopwords] UNION:  TF-IDF and Italian stopwords removed")
+    elif stopword_strategy == "tfidf":
+        docs = [
+            remove_stopwords(text, tfidf_stopwords)
+            for text in texts
+        ]
+        print("[Stopwords] TF-IDF: TF-IDF stopwords removed")
 
+    elif stopword_strategy == "delta":
+        delta_stopwords = set(tfidf_stopwords) - set(italian_stopwords)
+        docs = [
+            remove_stopwords(text, delta_stopwords)
+            for text in texts
+        ]
+        print("[Stopwords] DELTA: TF-IDF minus Italian stopwords removed")
+
+    elif stopword_strategy == "union":
+        union_stopwords = set(italian_stopwords) | set(tfidf_stopwords)
+        docs = [
+            remove_stopwords(text, union_stopwords)
+            for text in texts
+        ]
+        print("[Stopwords] UNION: Italian + TF-IDF stopwords removed")
+
+    else:
+        raise ValueError(
+            f"Unknown stopwords_strategy '{stopword_strategy}'. "
+            "Choose among: none, italian, tfidf, delta, union."
+        )
     # 10. TOPIC DETECTION (BERTopic)
     print(f"--> [Topic Modeling] Starting run on {len(docs)} negative reviews...")
 
     if len(docs) > 10:
+        # PREPARE SEMI-SUPERVISED y
+
+        #Adjust the labels columns
+        if "labels" in df.columns:
+            df["labels_list"] = df["labels"].apply(
+                lambda x: ast.literal_eval(x) if isinstance(x, str) else []
+            )
+        else:
+            df["labels_list"] = [[] for _ in range(len(df))]
+
+        #Consider only mono-label reviews (take the first label)
+        df_single = df[df["labels_list"].apply(len) == 1].copy()
+        df_single["label"] = df_single["labels_list"].apply(lambda x: x[0])
+
+        # Keep only labels with >= 25 examples
+        label_counts = df_single["label"].value_counts()
+        valid_labels = label_counts[label_counts >= 25].index.tolist()
+        df_single = df_single[df_single["label"].isin(valid_labels)]
+
+        print(f"Valid supervised labels: {len(valid_labels)}")
+
+        # Sample 15%
+        n_supervised = int(0.15 * len(df_single))
+        random.seed(seed_val)
+        supervised_idx = random.sample(list(df_single.index), n_supervised)
+
+        #Numerical encoding for labels
+        label2id = {lbl: i for i, lbl in enumerate(sorted(valid_labels))}
+
+        #Document of all -1, since it indicate unsupervised
+        y = np.full(len(docs), -1, dtype=int)
+
+        #Populate thw document with supervised labels
+        for idx in supervised_idx:
+            lbl = df.loc[idx, "labels_list"][0]
+            y[idx] = label2id[lbl]
+
+
+        print(f"Supervised docs: {(y != -1).sum()}")
+        print(f"Unsupervised docs: {(y == -1).sum()}")
+
+
         tm = TopicModeler()
 
-        # Run Modeling: choose among "umap_hdbscan", "kernelpca_spectral", "kernelpca_kmeans", "umap_spectral"
-        model, topics, probs = tm.run(docs, architecture_name="umap_hdbscan", logger=main_logger)
+        model, topics, probs = tm.run(
+            docs,
+            y=y,
+            run_name="bertopic_run",
+            architecture_name="umap_hdbscan",
+            type_name="semi_supervised",
+            logger=main_logger,
+        )
+
+        # 3 TOPICS FOR REVIEW
+        results_df = get_top3_topics_per_review(model, docs, topics, probs)
+        results_df.to_csv("reviews_top3_topics.csv", index=False)
+        print(f"Salvato {len(results_df)} review con top 3 topic")
 
         # Save Basic Results
         df["topic"] = topics
@@ -241,29 +305,67 @@ def main():
         tax_path = cfg.get("paths.taxonomy")
 
         taxonomy_df = load_taxonomy(tax_path)
-
         if not taxonomy_df.empty:
-            mapper = TaxonomyMapper(embedding_model=tm.embedding_model)
+              mapper = TaxonomyMapper(embedding_model=tm.embedding_model)
 
-            mapping_df = mapper.map_topics_to_taxonomy(model, taxonomy_df)
+              mapping_df = mapper.map_topics_to_taxonomy(model, taxonomy_df)
 
-            print(mapping_df.head())
-            out_file_map = cfg.get("paths.output_mapping")
-            mapping_df.to_excel(out_file_map, index=False)
-            print(f"--> [Done] Taxonomy comparison saved to {out_file_map}")
+              print(mapping_df.head())
+              out_file_map = cfg.get("paths.output_mapping")
+              mapping_df.to_excel(out_file_map, index=False)
+              print(f"--> [Done] Taxonomy comparison saved to {out_file_map}")
 
-            if main_logger:
-                main_logger.log_artifact(
-                    out_file_map,
-                    "dataset",
-                    "taxonomy_mapping",
-                )
+
+              # Add best matching label to the main dataframe with topics
+              # Create a mapping dictionary: Topic_ID -> Best_Match_Label
+              topic_to_label = dict(zip(mapping_df["Topic_ID"], mapping_df["Best_Match_Label"]))
+
+              # Add the label column to the main dataframe
+              df["taxonomy_label"] = df["topic"].map(topic_to_label)
+              df["taxonomy_label"] = df["taxonomy_label"].fillna("No Match (Outlier)")
+
+              # Re-save the updated dataframe with taxonomy labels
+              final_path = "resultswithtaxonomy.xlsx"
+              df.to_excel(final_path, index=False)
+
+              print(f"--> [Done] Updated results with taxonomy labels saved to {final_path}")
+
+              #ExactMatch count
+              count=0
+              tot=len(df)
+
+              def included_or_equal(a, b):
+                if pd.isna(a) or pd.isna(b):
+                    return False
+
+                # caso: b è lista
+                if isinstance(b, list):
+                    return a in b
+
+                # caso: b è stringa
+                if isinstance(b, str):
+                    return a in b
+
+                return False
+
+              mask = df.apply(lambda row: included_or_equal(row["taxonomy_label"], row["labels"]), axis=1)
+              count = mask.sum()
+              print(count/tot)
+
+
+
+              if main_logger:
+                  main_logger.log_artifact(
+                      out_file_map,
+                      "dataset",
+                      "taxonomy_mapping",
+                  )
         else:
-            print("--> [Warning] No taxonomy loaded. Skipping mapping.")
+              print("--> [Warning] No taxonomy loaded. Skipping mapping.")
 
     if cfg.get("project.wandb_logging"):
-        print("--> [WandB] Run finished.")
-        wandb.finish()
+          print("--> [WandB] Run finished.")
+          wandb.finish()
 
 
 if __name__ == "__main__":

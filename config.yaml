@@ -1,6 +1,6 @@
 project:
   name: "hype-topic-detection"
-  wandb_logging: true
+  wandb_logging: false
   seed: 42
 
 paths:
@@ -100,8 +100,8 @@ topic_modeling:
     metric: "cosine"
   #KernelPCA
   kernel_pca:
-    n_components: 5        
-    kernel: rbf  
+    n_components: 5
+    kernel: rbf
 
   # Clustering
   # HBDSCAN
@@ -134,6 +134,24 @@ topic_modeling:
     - "paga"
     - "conto"
     - "banca"
+
+  #GUIDED TOPIC MODELING
+  seed_topics:
+    - ["accesso", "login", "password", "codice verifica", "biometrico", "credenziali", "dispositivo"]
+    - ["bonifici", "bonifico", "istantanei", "periodici", "trasferimento"]
+    - ["carta", "spedizione", "design", "rinnovo", "materiale", "blocco"]
+    - ["costi", "commissioni", "bancario", "elevate"]
+    - ["pagamenti", "online", "siti web", "esecuzione", "ricariche"]
+    - ["prelievi", "prelevare", "restrittivi", "atm"]
+    - ["ricarica", "conto", "versamento"]
+    - ["piano", "downgrade", "upgrade", "gratuito", "premium", "business"]
+    - ["bug", "errori", "rallentamenti", "malfunzionamenti", "lenta"]
+    - ["assistenza", "supporto", "segnalazioni", "operatori", "telefonica"]
+    - ["blocco", "conto", "antifrode", "immotivato"]
+    - ["cashback", "bonus", "premi", "concorsi"]
+    - ["notifiche", "push", "email", "comunicazione"]
+    - ["wallet", "apple pay", "google pay", "virtuale"]
+    - ["investimenti", "grafici", "bitcoin", "crypto"]
 
 baselines:
   n_topics: 10

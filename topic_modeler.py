@@ -36,13 +36,27 @@ class TopicModeler:
         "clustering": "spectral"
         }
     }
+    RUN_TYPES = {
+        "unsupervised": {
+            "use_labels": False,
+            "use_seed_topics": False,
+        },
+        "guided": {
+            "use_labels": False,
+            "use_seed_topics": True,
+        },
+        "semi_supervised": {
+            "use_labels": True,
+            "use_seed_topics": False,
+        },
+    }
 
     def __init__(self):
         self.config = cfg.get("topic_modeling")
         self.project_name = cfg.get("project.name")
         self.embedding_model = None
         self.topic_model = None
-    
+
         # Setup Italian Stopwords
         nltk.download("stopwords", quiet=True)
         self.stop_words = stopwords.words("italian")
@@ -70,7 +84,7 @@ class TopicModeler:
             )
 
         raise ValueError(f"Unknown reduction: {name}")
-    
+
     def get_clustering(self, name):
         if name == "hdbscan":
             hcfg = self.config.get("hdbscan")
@@ -100,7 +114,7 @@ class TopicModeler:
         raise ValueError(f"Unknown clustering: {name}")
 
 
-    def run(self, docs: list, run_name: str = "bertopic_run", architecture_name : str = "umap_hdbscan", logger=None):
+    def run(self, docs: list,    y=None,  run_name: str = "bertopic_run", architecture_name : str = "umap_hdbscan",  type_name: str = "unsupervised", logger=None):
         """
         Executes the topic modeling pipeline.
         """
@@ -109,6 +123,10 @@ class TopicModeler:
 
         architecture = self.ARCHITECTURES[architecture_name]
         print(f"    Running architecture: {architecture}")
+
+        run_cfg = self.RUN_TYPES[type_name]
+        print(f"    Running type: {type_name}")
+
 
         # Wandb
         if cfg.get("project.wandb_logging") and logger is None:
@@ -124,11 +142,11 @@ class TopicModeler:
         print("    Encoding embeddings...")
         embeddings = self.embedding_model.encode(docs, show_progress_bar=True)
 
-        # 2. Dimensionality Reduction 
+        # 2. Dimensionality Reduction
         print(f"    Loading dimensionality reduction model ({architecture['reduction']})...")
-        dim_red_model = self.get_reduction(architecture['reduction'])  
+        dim_red_model = self.get_reduction(architecture['reduction'])
 
-        # 3. Clustering 
+        # 3. Clustering
         print(f"    Loading clustering model ({architecture['clustering']})...")
         cluster_model = self.get_clustering(architecture['clustering'])
 
@@ -137,21 +155,51 @@ class TopicModeler:
             stop_words=self.stop_words, min_df=self.config.get("min_df", 2)
         )
 
-        # 5. Initialize and Fit BERTopic
+        # 5. Definition of the type of running
+        if type_name not in self.RUN_TYPES:
+            raise ValueError(f"Unknown run type: {type_name}")
+
+        run_cfg = self.RUN_TYPES[type_name]
+        print(f"    Running type: {type_name}")
+
+        seed_topic_list = None
+        if run_cfg["use_seed_topics"]:
+            seed_topic_list = self.config.get("seed_topics", [])
+            print(f"    First 3 seed topics:")
+            for i, seed in enumerate(seed_topic_list[:3]):
+                print(f"      Topic {i}: {seed[:5]}...")
+
+        # 6. Initialize BERTopic (ONCE)
         self.topic_model = BERTopic(
             embedding_model=self.embedding_model,
             umap_model=dim_red_model,
             hdbscan_model=cluster_model,
             vectorizer_model=vectorizer_model,
+            seed_topic_list=seed_topic_list,
             language=self.config.get("language", "multilingual"),
             calculate_probabilities=True,
             verbose=True,
         )
 
         print("--> [BERTopic] Fitting model...")
-        topics, probs = self.topic_model.fit_transform(docs, embeddings=embeddings)
 
-        # 6. Logging to WandB
+        # 7. Fit model (semi-supervised if required)
+        if run_cfg["use_labels"]:
+            if y is None:
+                raise ValueError("Semi-supervised mode requires y labels, but y=None was passed")
+
+            if len(y) != len(docs):
+                raise ValueError(f"y must have same length as docs. Got y={len(y)}, docs={len(docs)}")
+
+            topics, probs = self.topic_model.fit_transform(
+                docs, embeddings=embeddings, y=y
+            )
+        else:
+            topics, probs = self.topic_model.fit_transform(
+                docs, embeddings=embeddings
+            )
+
+        # 9. Logging to WandB
         freq = self.topic_model.get_topic_info()
         n_topics = len(freq) - 1
         print(f"--> [BERTopic] Generated {n_topics} topics.")
@@ -174,6 +222,10 @@ class TopicModeler:
                 # C. Hierarchy (Tree) - Addresses Task 3b
                 # Limit to top 50 topics to keep it readable
                 fig_hierarchy = self.topic_model.visualize_hierarchy(top_n_topics=50)
+                hierarchical_topics = self.topic_model.hierarchical_topics(docs)
+                tree = self.topic_model.get_topic_tree(hierarchical_topics)
+                print(tree)
+
                 logger.log_plot("plot_hierarchy", fig_hierarchy)
 
                 # D. Similarity Heatmap - Addresses Topic Separation
