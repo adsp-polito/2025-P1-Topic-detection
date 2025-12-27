@@ -9,6 +9,8 @@ def get_top3_topics_per_review(
     probs,
     indices=None,
     top_words=5,
+    alpha=0.85,        # threshold relativo
+    max_labels=3,      # massimo numero di topic assegnabili
 ):
 
     results = []
@@ -17,33 +19,42 @@ def get_top3_topics_per_review(
         indices = range(len(docs))
 
     for i in indices:
-        review_probs = probs[i]
+        review_scores = probs[i]
 
-        # Top-3 topic indices (descending probability)
-        top3_indices = np.argsort(review_probs)[-3:][::-1]
-        top3_probs = review_probs[top3_indices]
+        # Ordina topic per score decrescente
+        sorted_idx = np.argsort(review_scores)[::-1]
+        sorted_scores = review_scores[sorted_idx]
+
+        max_score = sorted_scores[0]
+
+        # Multi-label selection (relative threshold)
+        selected = [
+            (int(tid), float(score))
+            for tid, score in zip(sorted_idx, sorted_scores)
+            if score >= alpha * max_score and tid != -1
+        ][:max_labels]
+
+        # Lista dei topic assegnati (MULTI-TOPIC)
+        multi_topics = [tid for tid, _ in selected]
 
         row = {
             "review_idx": i,
             "document": docs[i],
-            "assigned_topic": int(topics[i]),
+            "assigned_topic_primary": int(topics[i]),
+            "multi_topics": multi_topics,         
+            "n_assigned_topics": len(multi_topics),
         }
 
-        for rank in range(3):
-            topic_id = int(top3_indices[rank])
-            row[f"topic_{rank+1}"] = topic_id
-            row[f"topic_{rank+1}_prob"] = float(top3_probs[rank])
+        # Dettaglio top-k topic
+        for rank, (topic_id, score) in enumerate(selected, start=1):
+            row[f"topic_{rank}"] = topic_id
+            row[f"topic_{rank}_score"] = score
 
-            if topic_id == -1:
-                row[f"topic_{rank+1}_words"] = "Outlier"
-            else:
-                topic_words = model.get_topic(topic_id)
-                if topic_words:
-                    row[f"topic_{rank+1}_words"] = ", ".join(
-                        [w[0] for w in topic_words[:top_words]]
-                    )
-                else:
-                    row[f"topic_{rank+1}_words"] = "N/A"
+            words = model.get_topic(topic_id)
+            row[f"topic_{rank}_words"] = (
+                ", ".join([w[0] for w in words[:top_words]])
+                if words else "N/A"
+            )
 
         results.append(row)
 

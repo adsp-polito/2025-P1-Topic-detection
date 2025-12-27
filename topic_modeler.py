@@ -9,6 +9,7 @@ from umap import UMAP
 from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.decomposition import KernelPCA
 
+
 from config import cfg
 from logger import WandBLogger
 
@@ -169,6 +170,7 @@ class TopicModeler:
             for i, seed in enumerate(seed_topic_list[:3]):
                 print(f"      Topic {i}: {seed[:5]}...")
 
+       
         # 6. Initialize BERTopic (ONCE)
         self.topic_model = BERTopic(
             embedding_model=self.embedding_model,
@@ -198,6 +200,22 @@ class TopicModeler:
             topics, probs = self.topic_model.fit_transform(
                 docs, embeddings=embeddings
             )
+        # 8. Merge topics   
+
+        fig=self.topic_model.visualize_topics()
+        fig.write_html("./out/topic.html")
+
+        numberOfTopics = input("Look at topic.html, If you want to merge topics insert a number (+1), 0 otherwise")
+        if numberOfTopics.isdigit():
+          nr = int(numberOfTopics)
+          if nr != 0:
+            self.topic_model.reduce_topics(docs, nr_topics=nr)
+            topics = self.topic_model.topics_
+            _, probs = self.topic_model.transform(docs)
+        newfig=self.topic_model.visualize_topics()
+        newfig.write_html("./out/newTopic.html")
+        fig_hierarchy = self.topic_model.visualize_hierarchy(top_n_topics=50)
+        fig_hierarchy.write_html("./out/fig_hierarchy.html")
 
         # 9. Logging to WandB
         freq = self.topic_model.get_topic_info()
@@ -222,10 +240,6 @@ class TopicModeler:
                 # C. Hierarchy (Tree) - Addresses Task 3b
                 # Limit to top 50 topics to keep it readable
                 fig_hierarchy = self.topic_model.visualize_hierarchy(top_n_topics=50)
-                hierarchical_topics = self.topic_model.hierarchical_topics(docs)
-                tree = self.topic_model.get_topic_tree(hierarchical_topics)
-                print(tree)
-
                 logger.log_plot("plot_hierarchy", fig_hierarchy)
 
                 # D. Similarity Heatmap - Addresses Topic Separation

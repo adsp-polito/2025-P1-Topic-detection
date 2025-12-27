@@ -250,6 +250,7 @@ def main():
 
         # Save Basic Results
         df["topic"] = topics
+        df["multi_topics"]=results_df["multi_topics"]
 
         n_outliers = len(df[df["topic"] == -1])
         outlier_perc = (n_outliers / len(df)) * 100
