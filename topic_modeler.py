@@ -58,12 +58,16 @@ class TopicModeler:
         },
     }
 
-    def __init__(self):
+    def __init__(self, umap_params=None, hdbscan_params=None):
         self.config = cfg.get("topic_modeling")
         self.project_name = cfg.get("project.name")
         self.embedding_model = None
         self.topic_model = None
 
+        # Hyperparameter tuning (only used if avaiable)
+        self.umap_params = umap_params
+        self.hdbscan_params = hdbscan_params
+        
         # Setup Italian Stopwords
         nltk.download("stopwords", quiet=True)
         self.stop_words = stopwords.words("italian")
@@ -73,12 +77,16 @@ class TopicModeler:
 
     def get_reduction(self, name):
         if name == "umap":
-            ucfg = self.config.get("umap")
+            if self.umap_params is not None:
+                ucfg = self.umap_params  
+            else:
+                self.config.get("umap")
+
             return UMAP(
                 n_neighbors=ucfg["n_neighbors"],
                 n_components=ucfg["n_components"],
                 min_dist=ucfg["min_dist"],
-                metric=ucfg["metric"],
+                metric="cosine",
                 random_state=cfg.get("project.seed", 42),
             )
 
@@ -94,11 +102,16 @@ class TopicModeler:
 
     def get_clustering(self, name):
         if name == "hdbscan":
-            hcfg = self.config.get("hdbscan")
+            if self.hdbscan_params is not None:
+                hcfg = self.hdbscan_params  
+            else:
+                self.config.get("hdbscan")
+
             return HDBSCAN(
                 min_cluster_size=hcfg["min_cluster_size"],
+                min_samples=hcfg.get("min_samples", None),
                 metric="euclidean",
-                cluster_selection_method=hcfg["cluster_selection_method"],
+                cluster_selection_method=hcfg.get("cluster_selection_method", "eom"),
                 prediction_data=True,
             )
 

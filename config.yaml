@@ -9,6 +9,7 @@ paths:
   cache: "./data/cached_preprocessed_data.pkl"
   output_topics: "./out/results_topics.xlsx"
   output_mapping: "./out/taxonomy_comparison.xlsx"
+  output_tuning: "./out/results_topics.xlsx"
 
 preprocessing:
   use_cache: true
