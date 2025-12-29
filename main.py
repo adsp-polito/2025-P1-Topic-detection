@@ -239,7 +239,7 @@ def main():
             y=y,
             run_name="bertopic_run",
             architecture_name="umap_hdbscan",
-            type_name="semi_supervised",
+            type_name="unsupervised",
             logger=main_logger,
         )
 

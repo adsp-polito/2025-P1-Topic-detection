@@ -10,6 +10,7 @@ torch
 transformers
 sentencepiece     # Required for NLLB/XLM-R tokenizers
 accelerate        # Optimizes inference on GPU/CPU
+bitsandbytes
 sentence-transformers
 nltk
 emoji
@@ -27,6 +28,7 @@ safetensors       # For secure/fast model saving
 # --- Configuration & Logging ---
 pyyaml            # For config.yaml
 wandb
+huggingface
 
 # --- Visualization ---
 plotly

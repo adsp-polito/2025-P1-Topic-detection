@@ -1,5 +1,8 @@
 import nltk
 import wandb
+import transformers
+import torch
+
 from bertopic import BERTopic
 from hdbscan import HDBSCAN
 from nltk.corpus import stopwords
@@ -8,7 +11,10 @@ from sklearn.feature_extraction.text import CountVectorizer
 from umap import UMAP
 from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.decomposition import KernelPCA
-
+from bertopic.representation import TextGeneration
+from transformers import pipeline
+from torch import bfloat16
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from config import cfg
 from logger import WandBLogger
@@ -170,7 +176,7 @@ class TopicModeler:
             for i, seed in enumerate(seed_topic_list[:3]):
                 print(f"      Topic {i}: {seed[:5]}...")
 
-       
+
         # 6. Initialize BERTopic (ONCE)
         self.topic_model = BERTopic(
             embedding_model=self.embedding_model,
@@ -182,6 +188,7 @@ class TopicModeler:
             calculate_probabilities=True,
             verbose=True,
         )
+
 
         print("--> [BERTopic] Fitting model...")
 
@@ -200,7 +207,11 @@ class TopicModeler:
             topics, probs = self.topic_model.fit_transform(
                 docs, embeddings=embeddings
             )
-        # 8. Merge topics   
+
+
+
+
+        # 8. Merge topics
 
         fig=self.topic_model.visualize_topics()
         fig.write_html("./out/topic.html")
@@ -214,8 +225,71 @@ class TopicModeler:
             _, probs = self.topic_model.transform(docs)
         newfig=self.topic_model.visualize_topics()
         newfig.write_html("./out/newTopic.html")
+
+        # UPDATE REPRESENTATION
+
+        print("    Loading Llama 3.1 8B Instruct...")
+        model_id = "meta-llama/Llama-3.1-8B-Instruct"
+
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        tokenizer.pad_token = tokenizer.eos_token  # Fix per padding
+
+        # Quantizzazione
+        bnb_config = transformers.BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type='nf4',
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_compute_dtype=torch.bfloat16
+        )
+
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            quantization_config=bnb_config,
+            device_map="auto",
+            torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True
+        )
+
+        # === PROMPT CORRETTO ===
+        prompt ="""
+        REVIEWS:
+        [DOCUMENTS]
+
+        KEYWORDS:
+        [KEYWORDS]
+
+        Return ONLY one Italian label (max 4 words) describing the main problem in a mobile banking app, in the form "Problemi di".
+
+        Rules:
+        - Output ONLY the label text
+        - No "ANSWER:" or "Main issue:" as prefix
+        - No punctuation
+        - No markdown, no code, no quotes
+        - Single line only
+        - In Italian language
+        - No report the word "Return"
+        """
+
+
+        # === PIPELINE CON PARAMETRI CORRETTI ===
+        generator = pipeline(
+            'text-generation',
+            model=model,
+            tokenizer=tokenizer,
+            max_new_tokens=8,           # ← FIX PRINCIPALE!
+            do_sample=True,
+            temperature=0.1,             # Più deterministico
+            top_p=0.9,
+            repetition_penalty=1.2,
+            return_full_text=False       # Importante per BERTopic
+        )
+
+        representation_model = TextGeneration(generator, prompt=prompt)
+
+        self.topic_model.update_topics(docs,representation_model=representation_model)
         fig_hierarchy = self.topic_model.visualize_hierarchy(top_n_topics=50)
         fig_hierarchy.write_html("./out/fig_hierarchy.html")
+
 
         # 9. Logging to WandB
         freq = self.topic_model.get_topic_info()
