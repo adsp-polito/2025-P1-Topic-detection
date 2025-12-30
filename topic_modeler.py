@@ -80,7 +80,7 @@ class TopicModeler:
             if self.umap_params is not None:
                 ucfg = self.umap_params  
             else:
-                self.config.get("umap")
+                ucfg = self.config.get("umap")
 
             return UMAP(
                 n_neighbors=ucfg["n_neighbors"],
@@ -105,7 +105,7 @@ class TopicModeler:
             if self.hdbscan_params is not None:
                 hcfg = self.hdbscan_params  
             else:
-                self.config.get("hdbscan")
+                hcfg =self.config.get("hdbscan")
 
             return HDBSCAN(
                 min_cluster_size=hcfg["min_cluster_size"],
@@ -228,7 +228,7 @@ class TopicModeler:
 
         fig=self.topic_model.visualize_topics()
         fig.write_html("./out/topic.html")
-
+        """
         numberOfTopics = input("Look at topic.html, If you want to merge topics insert a number (+1), 0 otherwise")
         if numberOfTopics.isdigit():
           nr = int(numberOfTopics)
@@ -236,13 +236,17 @@ class TopicModeler:
             self.topic_model.reduce_topics(docs, nr_topics=nr)
             topics = self.topic_model.topics_
             _, probs = self.topic_model.transform(docs)
+        """
+        self.topic_model.reduce_topics(docs, nr_topics=15)
+        topics = self.topic_model.topics_
+        _, probs = self.topic_model.transform(docs)
         newfig=self.topic_model.visualize_topics()
         newfig.write_html("./out/newTopic.html")
 
         # UPDATE REPRESENTATION
 
         print("    Loading Llama 3.1 8B Instruct...")
-        model_id = "meta-llama/Llama-3.1-8B-Instruct"
+        model_id ="meta-llama/Llama-3.1-8B-Instruct"
 
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         tokenizer.pad_token = tokenizer.eos_token  # Fix per padding
@@ -265,23 +269,27 @@ class TopicModeler:
 
         # === PROMPT CORRETTO ===
         prompt ="""
-        REVIEWS:
-        [DOCUMENTS]
+Sei un analista di feedback utente esperto. Il tuo compito è sintetizzare recensioni e parole chiave in un'unica categoria standardizzata.
 
-        KEYWORDS:
-        [KEYWORDS]
+INPUT DA ANALIZZARE:
+REVIEWS: [DOCUMENTS]
+KEYWORDS: [KEYWORDS]
 
-        Return ONLY one Italian label (max 4 words) describing the main problem in a mobile banking app, in the form "Problemi di".
+REGOLE TASSATIVE:
+1. Produci UNICAMENTE una label in italiano di massimo 4 parole.
+2. Inizia sempre con la formula "Problemi di" (o "Problemi con" se più naturale).
+3. Priorità: Se l'input contiene log tecnici (GPU, pipeline, codice) e recensioni utente, IGNORE i log tecnici e categorizza solo il disagio dell'utente.
+4. Formattazione: Solo testo, niente punteggiatura finale, niente grassetti, niente virgolette, niente prefissi come "Label:" o "Risposta:".
+5. Se i documenti contengono più problemi, identifica quello principale o più frequente.
+6. Non inserire nella tua risposta errori tipo "Spiega", "Sp", "Etichetta" o "Giusto", basati sulla formula.
 
-        Rules:
-        - Output ONLY the label text
-        - No "ANSWER:" or "Main issue:" as prefix
-        - No punctuation
-        - No markdown, no code, no quotes
-        - Single line only
-        - In Italian language
-        - No report the word "Return"
-        """
+ESEMPI:
+Input: "L'app crasha sempre al login. Errore GPU pipeline 0x01" -> Problemi di accesso app
+Input: "Non riesco a pagare con la ricaricabile" -> Problemi di pagamenti
+Input: "Lento a caricare le notifiche" -> Problemi di notifiche
+
+OUTPUT:
+"""
 
 
         # === PIPELINE CON PARAMETRI CORRETTI ===
@@ -296,11 +304,30 @@ class TopicModeler:
             repetition_penalty=1.2,
             return_full_text=False       # Importante per BERTopic
         )
+        topic_labels = {}
+        for topic_id in range(len(self.topic_model.get_topic_info()) - 1):
+            
+            # Ottieni documenti e parole per questo topic
+            topic_words = [word for word, _ in self.topic_model.get_topic(topic_id)[:10]]
+            topic_docs = [doc for doc, topic in zip(docs, topics) if topic == topic_id][:5]
+            
+            # Prepara il prompt
+            prompt_filled = prompt.replace("[DOCUMENTS]", "\n".join(topic_docs[:3]))
+            prompt_filled = prompt_filled.replace("[KEYWORDS]", ", ".join(topic_words))
+            
+            # Genera etichetta
+            result = generator(prompt_filled)
+            label = result[0]['generated_text'].strip()
+            print(label)
+            topic_labels[topic_id] = label
 
-        representation_model = TextGeneration(generator, prompt=prompt)
+        # 2. Imposta solo le etichette, mantenendo le parole chiave
+        self.topic_model.set_topic_labels(topic_labels)
 
-        self.topic_model.update_topics(docs,representation_model=representation_model)
-        fig_hierarchy = self.topic_model.visualize_hierarchy(top_n_topics=50)
+        #representation_model = TextGeneration(generator, prompt=prompt)
+
+        #self.topic_model.update_topics(docs,representation_model=representation_model)
+        fig_hierarchy = self.topic_model.visualize_hierarchy(top_n_topics=50, custom_labels=True)
         fig_hierarchy.write_html("./out/fig_hierarchy.html")
 
 

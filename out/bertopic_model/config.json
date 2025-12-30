@@ -7,7 +7,7 @@
     1,
     1
   ],
-  "nr_topics": 20,
+  "nr_topics": 15,
   "seed_topic_list": null,
   "top_n_words": 10,
   "verbose": true,

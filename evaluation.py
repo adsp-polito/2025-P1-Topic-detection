@@ -42,6 +42,7 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics, embedding
 
     for t_id in topic_ids:
         words = [w for w, _ in topic_model.get_topic(t_id)[:10]]
+        
         if len(words) < 2:
             continue
 
@@ -56,6 +57,7 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics, embedding
     # Topic Diversity
     all_words = []
     for t_id in topic_ids:
+        
         all_words.extend([w for w, _ in topic_model.get_topic(t_id)[:10]])
 
     unique_words = set(all_words)
@@ -109,12 +111,32 @@ class TaxonomyMapper:
 
         discovered_texts = []
         topic_ids = []
+        custom_labels = []
 
         # Construct a string representation for each topic (using top 10 words for better context)
-        for t_id in topic_info["Topic"]:
+        topic_info = topic_info.reset_index(drop=True)
+
+        for idx, t_id in enumerate(topic_info["Topic"]):
+
             words = [word for word, _ in topic_model.get_topic(t_id)[:10]]
             discovered_texts.append(" ".join(words))
             topic_ids.append(t_id)
+
+
+            # FIX VERO
+            if hasattr(topic_model, "custom_labels_") and topic_model.custom_labels_:
+                if idx < len(topic_model.custom_labels_):
+                    label = topic_model.custom_labels_[idx]
+                else:
+                    label = topic_info.loc[
+                        topic_info["Topic"] == t_id, "Name"
+                    ].values[0]
+            else:
+                label = topic_info.loc[
+                    topic_info["Topic"] == t_id, "Name"
+                ].values[0]
+
+            custom_labels.append(label)
 
         if not topic_ids:
             print("    [Warning] No topics found (only noise). Skipping mapping.")
@@ -143,6 +165,7 @@ class TaxonomyMapper:
             results.append(
                 {
                     "Topic_ID": t_id,
+                     "LLM_Label": custom_labels[idx],
                     "Top_Words": discovered_texts[idx],
                     "Best_Match_Label": best_label,
                     "Similarity_Score": round(best_score, 4),
