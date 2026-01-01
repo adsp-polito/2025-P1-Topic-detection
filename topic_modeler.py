@@ -2,6 +2,7 @@ import nltk
 import wandb
 import transformers
 import torch
+import re
 
 from bertopic import BERTopic
 from hdbscan import HDBSCAN
@@ -132,6 +133,42 @@ class TopicModeler:
             )
 
         raise ValueError(f"Unknown clustering: {name}")
+    
+    def clean_label(self, raw_label: str) -> str:
+        label = ' '.join(raw_label.split())
+        
+        unwanted_prefixes = [
+            r'^(Risposta|Output|Label|Etichetta|Categoria):\s*',
+            r'^["\']',  
+        ]
+        for pattern in unwanted_prefixes:
+            label = re.sub(pattern, '', label, flags=re.IGNORECASE)
+        
+     
+        match = re.match(
+          r'(Problemi\s+(?:di|con|per)\s+[\w\s]{1,30}?)(?:\s+[A-Z]|\.|,|\s+La\b|\s+Il\b|\s+D\b|\s+Dopo\b)',
+          label,
+          re.IGNORECASE
+      )
+              
+        if match:
+            label = match.group(1).strip()
+        else:
+            words = label.split()
+            if words[0].lower() == 'problemi':
+                label = ' '.join(words[:4])
+        
+      
+        label = re.sub(r'[.,;:!?\'"]+$', '', label)
+        
+
+        label = label[0].upper() + label[1:].lower() if label else label
+        
+
+        if not label.lower().startswith('problemi'):
+            label = f"Problemi di {label.lower()}"
+        
+        return label
 
 
     def run(self, docs: list,    y=None,  run_name: str = "bertopic_run", architecture_name : str = "umap_hdbscan",  type_name: str = "unsupervised", logger=None):
@@ -318,8 +355,9 @@ OUTPUT:
             # Genera etichetta
             result = generator(prompt_filled)
             label = result[0]['generated_text'].strip()
-            print(label)
-            topic_labels[topic_id] = label
+            clean_label_text = self.clean_label(label)
+            print(f"Topic {topic_id}: {label} -> {clean_label_text}")
+            topic_labels[topic_id] = clean_label_text
 
         # 2. Imposta solo le etichette, mantenendo le parole chiave
         self.topic_model.set_topic_labels(topic_labels)
