@@ -42,8 +42,13 @@ class TopicModeler:
     "umap_spectral": {
         "reduction": "umap",
         "clustering": "spectral"
+        },
+    "umap_kmeans": {
+        "reduction": "umap",
+        "clustering": "kmeans"
         }
     }
+
     RUN_TYPES = {
         "unsupervised": {
             "use_labels": False,
@@ -258,14 +263,16 @@ class TopicModeler:
                 docs, embeddings=embeddings
             )
 
-
+        
+        #topics = self.topic_model.reduce_outliers(docs, topics)
+        #_, probs = self.topic_model.transform(docs)
 
 
         # 8. Merge topics
-
         fig=self.topic_model.visualize_topics()
         fig.write_html("./out/topic.html")
-        """
+
+        # Merge by number of topics
         numberOfTopics = input("Look at topic.html, If you want to merge topics insert a number (+1), 0 otherwise")
         if numberOfTopics.isdigit():
           nr = int(numberOfTopics)
@@ -273,101 +280,144 @@ class TopicModeler:
             self.topic_model.reduce_topics(docs, nr_topics=nr)
             topics = self.topic_model.topics_
             _, probs = self.topic_model.transform(docs)
-        """
+        
         self.topic_model.reduce_topics(docs, nr_topics=15)
         topics = self.topic_model.topics_
         _, probs = self.topic_model.transform(docs)
         newfig=self.topic_model.visualize_topics()
         newfig.write_html("./out/newTopic.html")
+        
+
+        # Merge by specific topics
+        merge = input("Look at topic.html. Do you want to merge specific topics? (Y/N): ")
+
+        while merge.upper() == "Y":
+
+            print(
+                "Insert topic pairs to merge, one per line.\n"
+                "Example:\n"
+                "1 2\n"
+                "3 4\n"
+                "Empty line to finish."
+            )
+
+            list_to_merge = []
+
+            while True:
+                line = input()
+                if line.strip() == "":
+                    break
+                try:
+                    a, b = map(int, line.split())
+                    list_to_merge.append([a, b])
+                except ValueError:
+                    print("Invalid format. Use: <int> <int>")
+
+            if not list_to_merge:
+                print("No valid topic pairs provided. Skipping merge.")
+            else:
+                self.topic_model.merge_topics(docs, list_to_merge)
+                topics = self.topic_model.topics_
+                _, probs = self.topic_model.transform(docs)
+
+                newfig = self.topic_model.visualize_topics()
+                newfig.write_html("./out/newTopic.html")
+
+                print(f"Merged topic pairs: {list_to_merge}")
+
+            merge = input("Look at newTopic.html. Merge more topics? (Y/N): ")
+
 
         # UPDATE REPRESENTATION
+        llm_representation = False
+        
+        if llm_representation==True:
+            print("    Loading Llama 3.1 8B Instruct...")
+            model_id ="meta-llama/Llama-3.1-8B-Instruct"
 
-        print("    Loading Llama 3.1 8B Instruct...")
-        model_id ="meta-llama/Llama-3.1-8B-Instruct"
+            tokenizer = AutoTokenizer.from_pretrained(model_id)
+            tokenizer.pad_token = tokenizer.eos_token  # Fix per padding
 
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        tokenizer.pad_token = tokenizer.eos_token  # Fix per padding
+            # Quantizzazione
+            bnb_config = transformers.BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type='nf4',
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=torch.bfloat16
+            )
 
-        # Quantizzazione
-        bnb_config = transformers.BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type='nf4',
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_compute_dtype=torch.bfloat16
-        )
+            model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                quantization_config=bnb_config,
+                device_map="auto",
+                torch_dtype=torch.bfloat16,
+                low_cpu_mem_usage=True
+            )
 
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            quantization_config=bnb_config,
-            device_map="auto",
-            torch_dtype=torch.bfloat16,
-            low_cpu_mem_usage=True
-        )
+            # === PROMPT CORRETTO ===
+            prompt ="""
+                Sei un analista di feedback utente esperto. Il tuo compito è sintetizzare recensioni e parole chiave in un'unica categoria standardizzata.
 
-        # === PROMPT CORRETTO ===
-        prompt ="""
-Sei un analista di feedback utente esperto. Il tuo compito è sintetizzare recensioni e parole chiave in un'unica categoria standardizzata.
+                INPUT DA ANALIZZARE:
+                REVIEWS: [DOCUMENTS]
+                KEYWORDS: [KEYWORDS]
 
-INPUT DA ANALIZZARE:
-REVIEWS: [DOCUMENTS]
-KEYWORDS: [KEYWORDS]
+                REGOLE TASSATIVE:
+                1. Produci UNICAMENTE una label in italiano di massimo 4 parole.
+                2. Inizia sempre con la formula "Problemi di" (o "Problemi con" se più naturale).
+                3. Priorità: Se l'input contiene log tecnici (GPU, pipeline, codice) e recensioni utente, IGNORE i log tecnici e categorizza solo il disagio dell'utente.
+                4. Formattazione: Solo testo, niente punteggiatura finale, niente grassetti, niente virgolette, niente prefissi come "Label:" o "Risposta:".
+                5. Se i documenti contengono più problemi, identifica quello principale o più frequente.
+                6. Non inserire nella tua risposta errori tipo "Spiega", "Sp", "Etichetta" o "Giusto", basati sulla formula.
 
-REGOLE TASSATIVE:
-1. Produci UNICAMENTE una label in italiano di massimo 4 parole.
-2. Inizia sempre con la formula "Problemi di" (o "Problemi con" se più naturale).
-3. Priorità: Se l'input contiene log tecnici (GPU, pipeline, codice) e recensioni utente, IGNORE i log tecnici e categorizza solo il disagio dell'utente.
-4. Formattazione: Solo testo, niente punteggiatura finale, niente grassetti, niente virgolette, niente prefissi come "Label:" o "Risposta:".
-5. Se i documenti contengono più problemi, identifica quello principale o più frequente.
-6. Non inserire nella tua risposta errori tipo "Spiega", "Sp", "Etichetta" o "Giusto", basati sulla formula.
+                ESEMPI:
+                Input: "L'app crasha sempre al login. Errore GPU pipeline 0x01" -> Problemi di accesso app
+                Input: "Non riesco a pagare con la ricaricabile" -> Problemi di pagamenti
+                Input: "Lento a caricare le notifiche" -> Problemi di notifiche
 
-ESEMPI:
-Input: "L'app crasha sempre al login. Errore GPU pipeline 0x01" -> Problemi di accesso app
-Input: "Non riesco a pagare con la ricaricabile" -> Problemi di pagamenti
-Input: "Lento a caricare le notifiche" -> Problemi di notifiche
-
-OUTPUT:
-"""
+                OUTPUT:
+            """
 
 
-        # === PIPELINE CON PARAMETRI CORRETTI ===
-        generator = pipeline(
-            'text-generation',
-            model=model,
-            tokenizer=tokenizer,
-            max_new_tokens=8,           # ← FIX PRINCIPALE!
-            do_sample=True,
-            temperature=0.1,             # Più deterministico
-            top_p=0.9,
-            repetition_penalty=1.2,
-            return_full_text=False       # Importante per BERTopic
-        )
-        topic_labels = {}
-        for topic_id in range(len(self.topic_model.get_topic_info()) - 1):
-            
-            # Ottieni documenti e parole per questo topic
-            topic_words = [word for word, _ in self.topic_model.get_topic(topic_id)[:10]]
-            topic_docs = [doc for doc, topic in zip(docs, topics) if topic == topic_id][:5]
-            
-            # Prepara il prompt
-            prompt_filled = prompt.replace("[DOCUMENTS]", "\n".join(topic_docs[:3]))
-            prompt_filled = prompt_filled.replace("[KEYWORDS]", ", ".join(topic_words))
-            
-            # Genera etichetta
-            result = generator(prompt_filled)
-            label = result[0]['generated_text'].strip()
-            clean_label_text = self.clean_label(label)
-            print(f"Topic {topic_id}: {label} -> {clean_label_text}")
-            topic_labels[topic_id] = clean_label_text
+            # === PIPELINE CON PARAMETRI CORRETTI ===
+            generator = pipeline(
+                'text-generation',
+                model=model,
+                tokenizer=tokenizer,
+                max_new_tokens=8,           # ← FIX PRINCIPALE!
+                do_sample=True,
+                temperature=0.1,             # Più deterministico
+                top_p=0.9,
+                repetition_penalty=1.2,
+                return_full_text=False       # Importante per BERTopic
+            )
+            topic_labels = {}
+            for topic_id in range(len(self.topic_model.get_topic_info()) - 1):
+                
+                # Ottieni documenti e parole per questo topic
+                topic_words = [word for word, _ in self.topic_model.get_topic(topic_id)[:10]]
+                topic_docs = [doc for doc, topic in zip(docs, topics) if topic == topic_id][:5]
+                
+                # Prepara il prompt
+                prompt_filled = prompt.replace("[DOCUMENTS]", "\n".join(topic_docs[:3]))
+                prompt_filled = prompt_filled.replace("[KEYWORDS]", ", ".join(topic_words))
+                
+                # Genera etichetta
+                result = generator(prompt_filled)
+                label = result[0]['generated_text'].strip()
+                clean_label_text = self.clean_label(label)
+                print(f"Topic {topic_id}: {label} -> {clean_label_text}")
+                topic_labels[topic_id] = clean_label_text
 
-        # 2. Imposta solo le etichette, mantenendo le parole chiave
-        self.topic_model.set_topic_labels(topic_labels)
+            # 2. Imposta solo le etichette, mantenendo le parole chiave
+            self.topic_model.set_topic_labels(topic_labels)
 
-        #representation_model = TextGeneration(generator, prompt=prompt)
+            representation_model = TextGeneration(generator, prompt=prompt)
 
-        #self.topic_model.update_topics(docs,representation_model=representation_model)
+            self.topic_model.update_topics(docs,representation_model=representation_model)
+        
         fig_hierarchy = self.topic_model.visualize_hierarchy(top_n_topics=50, custom_labels=True)
         fig_hierarchy.write_html("./out/fig_hierarchy.html")
-
 
         # 9. Logging to WandB
         freq = self.topic_model.get_topic_info()

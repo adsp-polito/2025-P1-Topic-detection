@@ -80,3 +80,44 @@ def ensure_directories(paths: list):
                 os.makedirs(directory, exist_ok=True)
                 print(f"--> [System] Created directory: {directory}")
                 print(f"--> [System] Created directory: {directory}")
+
+
+def save_reviews_with_topic_probabilities(
+    docs,
+    topics,
+    probs,
+    output_path,
+    top_k=None
+):
+    """
+    Save an Excel file with:
+    - review text
+    - assigned topic
+    - probability for each topic
+    - optional top-k topics per review
+    """
+
+    n_topics = probs.shape[1]
+
+    # Base dataframe
+    df = pd.DataFrame({
+        "review": docs,
+        "assigned_topic": topics
+    })
+
+    # Add probability columns
+    for t in range(n_topics):
+        df[f"prob_topic_{t}"] = probs[:, t]
+
+    # Optional: top-k topics
+    if top_k is not None:
+        topk_idx = np.argsort(probs, axis=1)[:, ::-1][:, :top_k]
+        topk_probs = np.take_along_axis(probs, topk_idx, axis=1)
+
+        for k in range(top_k):
+            df[f"top{k+1}_topic"] = topk_idx[:, k]
+            df[f"top{k+1}_prob"] = topk_probs[:, k]
+
+    # Save
+    df.to_excel(output_path, index=False)
+    print(f"[Saved] Review-topic probabilities → {output_path}")
