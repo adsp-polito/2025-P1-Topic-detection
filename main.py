@@ -16,7 +16,7 @@ from mwe import MWEExtractor
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
-from utils import ensure_directories, load_taxonomy, seed_everything
+from utils import ensure_directories, load_taxonomy, seed_everything, save_reviews_with_topic_probabilities
 from nltk.corpus import stopwords
 from multilabel import get_top3_topics_per_review
 
@@ -50,17 +50,19 @@ def main():
     data_path = cfg.get("paths.data")
     cache_path = cfg.get("paths.cache")
     use_cache = cfg.get("preprocessing.use_cache")
+    final_cache_path = "./out/cache_preprocessing_full.pkl"
 
     loader = DataProcessor(data_path)
     df = None
 
     # --- CHECKPOINT LOGIC ---
-    if use_cache and os.path.exists(cache_path):
-        print(f"--> [Cache] Found cached file '{cache_path}'. Loading...")
-        df = pd.read_pickle(cache_path)
+    if use_cache and os.path.exists(final_cache_path):
+        print(f"--> [Cache] Found cached file '{final_cache_path}'. Loading...")
+        df = pd.read_pickle(final_cache_path)
         print(f"--> [Cache] Loaded {len(df)} reviews from cache.")
 
         loader.df = df
+
     else:
         print("--> [Cache] No cache found. Running full preprocessing...")
 
@@ -80,9 +82,30 @@ def main():
         sentiment_engine = SentimentEnsemble()
         df = sentiment_engine.get_ensemble_sentiment(df, text_col="clean_text")
 
+        # 6. FILTER DATASET (STRICTLY NEGATIVE)
+        print("--> [Filter] Keeping ONLY Negative reviews for Topic Detection...")
+        df = df[df["sentiment"] == "negative"].reset_index(drop=True)
+
+        print(f"--> [Filter] {len(df)} negative reviews remaining.")
+
+        loader.df = df
+
+        # Junk Removal
+        df = loader.remove_junk_reviews(column="clean_text")
+
+        # 7. DEDUPLICATION (TF-IDF)
+        deduplicator = DuplicateRemover()
+        df = deduplicator.remove_duplicates(df, text_col="clean_text")
+
+        # 8. MULTI-WORD EXPRESSIONS
+        mwe_extractor = MWEExtractor(df=df)
+        mwe_list = mwe_extractor.extract_mwe()
+        mwe_list.to_excel("./data/mwe_list.xlsx", index=False)
+        df = mwe_extractor.apply_mwe()
+
         # SAVE CACHE
-        print(f"--> [Cache] Saving to '{cache_path}'...")
-        df.to_pickle(cache_path)
+        print(f"--> [Cache] Saving to '{final_cache_path}'...")
+        df.to_pickle(final_cache_path)
 
     # --- EDA LOGGING (Sentiment Distribution) ---
     if cfg.get("project.wandb_logging"):
@@ -103,29 +126,7 @@ def main():
         )
         eda_logger.log_plot("sentiment_dist_plot", bar_plot, plot_type="chart")
 
-    # 6. FILTER DATASET (STRICTLY NEGATIVE)
-    print("--> [Filter] Keeping ONLY Negative reviews for Topic Detection...")
-    df = df[df["sentiment"] == "negative"].reset_index(drop=True)
-
-    print(f"--> [Filter] {len(df)} negative reviews remaining.")
-
-    loader.df = df
-
-    # Junk Removal
-    df = loader.remove_junk_reviews(column="clean_text")
-
-    # 7. DEDUPLICATION (TF-IDF)
-    deduplicator = DuplicateRemover()
-    df = deduplicator.remove_duplicates(df, text_col="clean_text")
-
-    # 8. MULTI-WORD EXPRESSIONS
-    mwe_extractor = MWEExtractor(df=df)
-    mwe_list = mwe_extractor.extract_mwe()
-    mwe_list.to_excel("./data/mwe_list.xlsx", index=False)
-    df = mwe_extractor.apply_mwe()
-
     # 9. STOPWORD REMOVAL COMPARISON
-
     nltk.download("stopwords", quiet=True)
     italian_stopwords = set(stopwords.words("italian"))
 
@@ -141,11 +142,10 @@ def main():
         return " ".join(
             [w for w in text.split() if w.lower() not in stopword_set]
         )
-
-
-    stopword_strategy = "none"
-
+    
     texts = df["clean_text_mwe"].tolist()
+
+    stopword_strategy = "union"
 
     if stopword_strategy == "none":
         docs = texts
@@ -186,6 +186,7 @@ def main():
             f"Unknown stopwords_strategy '{stopword_strategy}'. "
             "Choose among: none, italian, tfidf, delta, union."
         )
+    
     # 10. TOPIC DETECTION (BERTopic)
     print(f"--> [Topic Modeling] Starting run on {len(docs)} negative reviews...")
 
@@ -241,6 +242,16 @@ def main():
             architecture_name="umap_hdbscan",
             type_name="unsupervised",
             logger=main_logger,
+        )
+
+        output_probs_path = "./out/reviews_topic_probabilities.xlsx"
+
+        save_reviews_with_topic_probabilities(
+            docs=docs,
+            topics=topics,
+            probs=probs,
+            output_path=output_probs_path,
+            top_k=3   
         )
 
         # 3 TOPICS FOR REVIEW
