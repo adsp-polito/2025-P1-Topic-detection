@@ -61,6 +61,10 @@ class DataProcessor:
             # 4. Normalize repeated characters (e.g., "nooooo" -> "noo")
             text = re.sub(r"(.)\1{2,}", r"\1\1", text)
 
+            # 1. Remove newlines and carriage returns
+            text = text.replace("\n", " ")
+            text = text.replace("\r", " ")
+
             return text
 
         self.df[target_column] = self.df[text_column].progress_apply(clean)

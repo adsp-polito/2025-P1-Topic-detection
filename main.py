@@ -16,7 +16,7 @@ from mwe import MWEExtractor
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
-from utils import ensure_directories, load_taxonomy, seed_everything, save_reviews_with_topic_probabilities
+from utils import ensure_directories, load_taxonomy, seed_everything, save_reviews_with_topic_probabilities, export_excel_safe
 from nltk.corpus import stopwords
 from multilabel import get_top3_topics_per_review
 
@@ -287,9 +287,7 @@ def main():
 
         # If outliers > 40%, warn the user
         if outlier_perc > 40:
-            print(
-                "    [WARNING] High outlier count! Consider lowering 'min_cluster_size' in config.yaml"
-            )
+            print("    [WARNING] High outlier count! Consider lowering 'min_cluster_size' in config.yaml")
 
         out_file_topics = cfg.get("paths.output_topics")
         os.makedirs(os.path.dirname(out_file_topics), exist_ok=True)
@@ -337,6 +335,15 @@ def main():
 
               print(mapping_df.head())
               out_file_map = cfg.get("paths.output_mapping")
+              mapping_df = mapping_df.replace(
+                    {
+                        "\r": "",
+                        "\n": "",
+                        "_x00d_": "",
+                        "_x00d": "",
+                    },
+                    regex=True
+                )
               mapping_df.to_excel(out_file_map, index=False)
               print(f"--> [Done] Taxonomy comparison saved to {out_file_map}")
 
@@ -351,6 +358,15 @@ def main():
 
               # Re-save the updated dataframe with taxonomy labels
               final_path = "resultswithtaxonomy.xlsx"
+              df = df.replace(
+                    {
+                        "\r": "",
+                        "\n": "",
+                        "_x00d_": "",
+                        "_x00d": "",
+                    },
+                    regex=True
+                )
               df.to_excel(final_path, index=False)
 
               print(f"--> [Done] Updated results with taxonomy labels saved to {final_path}")
