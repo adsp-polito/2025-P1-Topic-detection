@@ -26,6 +26,16 @@ def main():
     seed_everything(seed_val)
 
     print("=== HYPE TOPIC DETECTION PIPELINE ===")
+
+    #EVALUATE IF MOVE IT TO config.yaml
+
+    #["umap_hdbscan", "kernelpca_spectral", "kernelpca_kmeans", "umap_spectral", "umap_kmeans"]
+    definedArchitecture_name="umap_hdbscan"
+    #["unsupervised", "guided", "semi_supervised"]
+    definedRunningType_name= "unsupervised"
+    #["none", "italian", "tfidf", "delta", "union"]
+    stopword_strategy= "none"
+
     main_logger=None
 
     # INITIALIZE WANDB (Global Run)
@@ -145,8 +155,6 @@ def main():
     
     texts = df["clean_text_mwe"].tolist()
 
-    stopword_strategy = "union"
-
     if stopword_strategy == "none":
         docs = texts
         print("[Stopwords] NONE: no stopword removal")
@@ -239,8 +247,8 @@ def main():
             docs,
             y=y,
             run_name="bertopic_run",
-            architecture_name="umap_hdbscan",
-            type_name="unsupervised",
+            architecture_name=definedArchitecture_name,
+            type_name=definedRunningType_name,
             logger=main_logger,
         )
 
@@ -253,15 +261,20 @@ def main():
             output_path=output_probs_path,
             top_k=3   
         )
+        
 
         # 3 TOPICS FOR REVIEW
-        results_df = get_top3_topics_per_review(model, docs, topics, probs)
-        results_df.to_csv("reviews_top3_topics.csv", index=False)
-        print(f"Salvato {len(results_df)} review con top 3 topic")
+        if (definedArchitecture_name=="umap_hdbscan"):
+          results_df = get_top3_topics_per_review(model, docs, topics, probs)
+          results_df.to_csv("reviews_top3_topics.csv", index=False)
+          df["multi_topics"]=results_df["multi_topics"]
+          print(f"Salvato {len(results_df)} review con top 3 topic")
 
         # Save Basic Results
+        if isinstance(topics, tuple):
+           topics = topics[0]
         df["topic"] = topics
-        df["multi_topics"]=results_df["multi_topics"]
+
 
         n_outliers = len(df[df["topic"] == -1])
         outlier_perc = (n_outliers / len(df)) * 100

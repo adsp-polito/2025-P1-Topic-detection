@@ -97,7 +97,16 @@ def save_reviews_with_topic_probabilities(
     - optional top-k topics per review
     """
 
-    n_topics = probs.shape[1]
+    if isinstance(topics, tuple):
+        topics = topics[0]
+
+    if probs is not None:
+        n_topics = probs.shape[1]
+    else:
+      
+        unique_topics = set(topics)
+        n_topics = len(unique_topics)
+      
 
     # Base dataframe
     df = pd.DataFrame({
@@ -107,10 +116,13 @@ def save_reviews_with_topic_probabilities(
 
     # Add probability columns
     for t in range(n_topics):
-        df[f"prob_topic_{t}"] = probs[:, t]
+        if probs is None:
+            df[f"prob_topic_{t}"] = 0
+        else:
+            df[f"prob_topic_{t}"] = probs[:, t]
 
     # Optional: top-k topics
-    if top_k is not None:
+    if top_k is not None and probs is not None:
         topk_idx = np.argsort(probs, axis=1)[:, ::-1][:, :top_k]
         topk_probs = np.take_along_axis(probs, topk_idx, axis=1)
 
@@ -120,4 +132,8 @@ def save_reviews_with_topic_probabilities(
 
     # Save
     df.to_excel(output_path, index=False)
-    print(f"[Saved] Review-topic probabilities → {output_path}")
+    if probs is None: 
+      probFlag= "without"
+    else:
+      probFlag= "with" 
+    print(f"[Saved] Review-topic {probFlag} probabilities → {output_path}")

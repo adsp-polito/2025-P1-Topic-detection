@@ -240,9 +240,11 @@ class TopicModeler:
             vectorizer_model=vectorizer_model,
             seed_topic_list=seed_topic_list,
             language=self.config.get("language", "multilingual"),
-            calculate_probabilities=True,
+            calculate_probabilities=architecture_name  == "umap_hdbscan",
             verbose=True,
+            nr_topics=15
         )
+
 
 
         print("--> [BERTopic] Fitting model...")
@@ -255,83 +257,94 @@ class TopicModeler:
             if len(y) != len(docs):
                 raise ValueError(f"y must have same length as docs. Got y={len(y)}, docs={len(docs)}")
 
-            topics, probs = self.topic_model.fit_transform(
-                docs, embeddings=embeddings, y=y
-            )
-        else:
-            topics, probs = self.topic_model.fit_transform(
-                docs, embeddings=embeddings
-            )
-
-        
-        #topics = self.topic_model.reduce_outliers(docs, topics)
-        #_, probs = self.topic_model.transform(docs)
-
-
-        # 8. Merge topics
-        fig=self.topic_model.visualize_topics()
-        fig.write_html("./out/topic.html")
-
-        # Merge by number of topics
-        numberOfTopics = input("Look at topic.html, If you want to merge topics insert a number (+1), 0 otherwise")
-        if numberOfTopics.isdigit():
-          nr = int(numberOfTopics)
-          if nr != 0:
-            self.topic_model.reduce_topics(docs, nr_topics=nr)
-            topics = self.topic_model.topics_
-            _, probs = self.topic_model.transform(docs)
-        
-        self.topic_model.reduce_topics(docs, nr_topics=15)
-        topics = self.topic_model.topics_
-        _, probs = self.topic_model.transform(docs)
-        newfig=self.topic_model.visualize_topics()
-        newfig.write_html("./out/newTopic.html")
-        
-
-        # Merge by specific topics
-        merge = input("Look at topic.html. Do you want to merge specific topics? (Y/N): ")
-
-        while merge.upper() == "Y":
-
-            print(
-                "Insert topic pairs to merge, one per line.\n"
-                "Example:\n"
-                "1 2\n"
-                "3 4\n"
-                "Empty line to finish."
-            )
-
-            list_to_merge = []
-
-            while True:
-                line = input()
-                if line.strip() == "":
-                    break
-                try:
-                    a, b = map(int, line.split())
-                    list_to_merge.append([a, b])
-                except ValueError:
-                    print("Invalid format. Use: <int> <int>")
-
-            if not list_to_merge:
-                print("No valid topic pairs provided. Skipping merge.")
+            if architecture_name  == "umap_hdbscan":
+                topics, probs = self.topic_model.fit_transform(
+                    docs, embeddings=embeddings, y=y
+                )
             else:
-                self.topic_model.merge_topics(docs, list_to_merge)
-                topics = self.topic_model.topics_
-                _, probs = self.topic_model.transform(docs)
+                topics = self.topic_model.fit_transform(
+                    docs, embeddings=embeddings, y=y
+                )
+                probs = None
+        else:
+            if architecture_name  == "umap_hdbscan":
+                topics, probs = self.topic_model.fit_transform(
+                    docs, embeddings=embeddings
+                )
+            else:
+                topics = self.topic_model.fit_transform(
+                    docs, embeddings=embeddings
+                )
+                probs = None
 
-                newfig = self.topic_model.visualize_topics()
-                newfig.write_html("./out/newTopic.html")
-
-                print(f"Merged topic pairs: {list_to_merge}")
-
-            merge = input("Look at newTopic.html. Merge more topics? (Y/N): ")
-
-
-        # UPDATE REPRESENTATION
-        llm_representation = False
         
-        if llm_representation==True:
+        
+        if cfg.get("reductionNumberTopic"):
+          # 8. Merge topics
+          fig=self.topic_model.visualize_topics()
+          fig.write_html("./out/topic.html")
+
+          # Merge by number of topics
+          numberOfTopics = input("Look at topic.html, If you want to merge topics insert a number (+1), 0 otherwise")
+          if numberOfTopics.isdigit():
+            nr = int(numberOfTopics)
+            if nr != 0:
+                self.topic_model.reduce_topics(docs, nr_topics=nr)
+                topics = self.topic_model.topics_
+                
+                if architecture_name  == "umap_hdbscan":
+                    _, probs = self.topic_model.transform(docs)
+                else:
+                    _ = self.topic_model.transform(docs)
+                    probs = None
+
+          newfig = self.topic_model.visualize_topics()
+          newfig.write_html("./out/newTopic.html")
+
+          # Merge by specific topics
+          merge = input("Look at topic.html. Do you want to merge specific topics? (Y/N): ")
+
+          while merge.upper() == "Y":
+
+              print(
+                  "Insert topic pairs to merge, one per line.\n"
+                  "Example:\n"
+                  "1 2\n"
+                  "3 4\n"
+                  "Empty line to finish."
+              )
+
+              list_to_merge = []
+
+              while True:
+                  line = input()
+                  if line.strip() == "":
+                      break
+                  try:
+                      a, b = map(int, line.split())
+                      list_to_merge.append([a, b])
+                  except ValueError:
+                      print("Invalid format. Use: <int> <int>")
+
+              if not list_to_merge:
+                  print("No valid topic pairs provided. Skipping merge.")
+              else:
+                  self.topic_model.merge_topics(docs, list_to_merge)
+                  topics = self.topic_model.topics_
+                  if architecture_name  == "umap_hdbscan":
+                    _, probs = self.topic_model.transform(docs)
+                  else:
+                    _ = self.topic_model.transform(docs)
+                    probs = None
+
+                  newfig = self.topic_model.visualize_topics()
+                  newfig.write_html("./out/newTopic.html")
+
+                  print(f"Merged topic pairs: {list_to_merge}")
+
+              merge = input("Look at newTopic.html. Merge more topics? (Y/N): ")
+
+        if cfg.get("llmRepresentation"):
             print("    Loading Llama 3.1 8B Instruct...")
             model_id ="meta-llama/Llama-3.1-8B-Instruct"
 
@@ -354,7 +367,7 @@ class TopicModeler:
                 low_cpu_mem_usage=True
             )
 
-            # === PROMPT CORRETTO ===
+         
             prompt ="""
                 Sei un analista di feedback utente esperto. Il tuo compito è sintetizzare recensioni e parole chiave in un'unica categoria standardizzata.
 
@@ -379,37 +392,36 @@ class TopicModeler:
             """
 
 
-            # === PIPELINE CON PARAMETRI CORRETTI ===
+
             generator = pipeline(
                 'text-generation',
                 model=model,
                 tokenizer=tokenizer,
-                max_new_tokens=8,           # ← FIX PRINCIPALE!
+                max_new_tokens=8,          
                 do_sample=True,
-                temperature=0.1,             # Più deterministico
+                temperature=0.1,            
                 top_p=0.9,
                 repetition_penalty=1.2,
-                return_full_text=False       # Importante per BERTopic
+                return_full_text=False
             )
             topic_labels = {}
             for topic_id in range(len(self.topic_model.get_topic_info()) - 1):
-                
-                # Ottieni documenti e parole per questo topic
+             
                 topic_words = [word for word, _ in self.topic_model.get_topic(topic_id)[:10]]
                 topic_docs = [doc for doc, topic in zip(docs, topics) if topic == topic_id][:5]
                 
-                # Prepara il prompt
+              
                 prompt_filled = prompt.replace("[DOCUMENTS]", "\n".join(topic_docs[:3]))
                 prompt_filled = prompt_filled.replace("[KEYWORDS]", ", ".join(topic_words))
                 
-                # Genera etichetta
+              
                 result = generator(prompt_filled)
                 label = result[0]['generated_text'].strip()
                 clean_label_text = self.clean_label(label)
                 print(f"Topic {topic_id}: {label} -> {clean_label_text}")
                 topic_labels[topic_id] = clean_label_text
 
-            # 2. Imposta solo le etichette, mantenendo le parole chiave
+            
             self.topic_model.set_topic_labels(topic_labels)
 
             representation_model = TextGeneration(generator, prompt=prompt)
