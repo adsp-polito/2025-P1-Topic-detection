@@ -79,7 +79,6 @@ def ensure_directories(paths: list):
             if directory and not os.path.exists(directory):
                 os.makedirs(directory, exist_ok=True)
                 print(f"--> [System] Created directory: {directory}")
-                print(f"--> [System] Created directory: {directory}")
 
 
 def save_reviews_with_topic_probabilities(

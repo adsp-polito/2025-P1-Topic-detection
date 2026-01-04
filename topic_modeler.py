@@ -1,52 +1,35 @@
-import nltk
-import wandb
-import transformers
-import torch
 import re
 
+import nltk
+import torch
+import transformers
+import wandb
 from bertopic import BERTopic
+from bertopic.representation import TextGeneration
 from hdbscan import HDBSCAN
 from nltk.corpus import stopwords
 from sentence_transformers import SentenceTransformer
-from sklearn.feature_extraction.text import CountVectorizer
-from umap import UMAP
 from sklearn.cluster import KMeans, SpectralClustering
 from sklearn.decomposition import KernelPCA
-from bertopic.representation import TextGeneration
-from transformers import pipeline
-from torch import bfloat16
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from sklearn.feature_extraction.text import CountVectorizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from umap import UMAP
 
 from config import cfg
-from logger import WandBLogger
 
 
 class TopicModeler:
     """
     BERTopic wrapper with SOTA Italian configurations and WandB logging.
     """
+
     ARCHITECTURES = {
-    #Default
-    "umap_hdbscan": {
-        "reduction": "umap",
-        "clustering": "hdbscan"
-        },
-    "kernelpca_spectral": {
-        "reduction": "kernel_pca",
-        "clustering": "spectral"
-        },
-    "kernelpca_kmeans": {
-        "reduction": "kernel_pca",
-        "clustering": "kmeans"
-        },
-    "umap_spectral": {
-        "reduction": "umap",
-        "clustering": "spectral"
-        },
-    "umap_kmeans": {
-        "reduction": "umap",
-        "clustering": "kmeans"
-        }
+        # Default
+        "umap_hdbscan": {"reduction": "umap", "clustering": "hdbscan"},
+        "kernelpca_spectral": {"reduction": "kernel_pca", "clustering": "spectral"},
+        "kernelpca_kmeans": {"reduction": "kernel_pca", "clustering": "kmeans"},
+        "umap_spectral": {"reduction": "umap", "clustering": "spectral"},
+        "umap_kmeans": {"reduction": "umap", "clustering": "kmeans"},
     }
 
     RUN_TYPES = {
@@ -73,7 +56,7 @@ class TopicModeler:
         # Hyperparameter tuning (only used if avaiable)
         self.umap_params = umap_params
         self.hdbscan_params = hdbscan_params
-        
+
         # Setup Italian Stopwords
         nltk.download("stopwords", quiet=True)
         self.stop_words = stopwords.words("italian")
@@ -84,7 +67,7 @@ class TopicModeler:
     def get_reduction(self, name):
         if name == "umap":
             if self.umap_params is not None:
-                ucfg = self.umap_params  
+                ucfg = self.umap_params
             else:
                 ucfg = self.config.get("umap")
 
@@ -109,9 +92,9 @@ class TopicModeler:
     def get_clustering(self, name):
         if name == "hdbscan":
             if self.hdbscan_params is not None:
-                hcfg = self.hdbscan_params  
+                hcfg = self.hdbscan_params
             else:
-                hcfg =self.config.get("hdbscan")
+                hcfg = self.config.get("hdbscan")
 
             return HDBSCAN(
                 min_cluster_size=hcfg["min_cluster_size"],
@@ -138,45 +121,48 @@ class TopicModeler:
             )
 
         raise ValueError(f"Unknown clustering: {name}")
-    
+
     def clean_label(self, raw_label: str) -> str:
-        label = ' '.join(raw_label.split())
-        
+        label = " ".join(raw_label.split())
+
         unwanted_prefixes = [
-            r'^(Risposta|Output|Label|Etichetta|Categoria):\s*',
-            r'^["\']',  
+            r"^(Risposta|Output|Label|Etichetta|Categoria):\s*",
+            r'^["\']',
         ]
         for pattern in unwanted_prefixes:
-            label = re.sub(pattern, '', label, flags=re.IGNORECASE)
-        
-     
+            label = re.sub(pattern, "", label, flags=re.IGNORECASE)
+
         match = re.match(
-          r'(Problemi\s+(?:di|con|per)\s+[\w\s]{1,30}?)(?:\s+[A-Z]|\.|,|\s+La\b|\s+Il\b|\s+D\b|\s+Dopo\b)',
-          label,
-          re.IGNORECASE
-      )
-              
+            r"(Problemi\s+(?:di|con|per)\s+[\w\s]{1,30}?)(?:\s+[A-Z]|\.|,|\s+La\b|\s+Il\b|\s+D\b|\s+Dopo\b)",
+            label,
+            re.IGNORECASE,
+        )
+
         if match:
             label = match.group(1).strip()
         else:
             words = label.split()
-            if words[0].lower() == 'problemi':
-                label = ' '.join(words[:4])
-        
-      
-        label = re.sub(r'[.,;:!?\'"]+$', '', label)
-        
+            if words[0].lower() == "problemi":
+                label = " ".join(words[:4])
+
+        label = re.sub(r'[.,;:!?\'"]+$', "", label)
 
         label = label[0].upper() + label[1:].lower() if label else label
-        
 
-        if not label.lower().startswith('problemi'):
+        if not label.lower().startswith("problemi"):
             label = f"Problemi di {label.lower()}"
-        
+
         return label
 
-
-    def run(self, docs: list,    y=None,  run_name: str = "bertopic_run", architecture_name : str = "umap_hdbscan",  type_name: str = "unsupervised", logger=None):
+    def run(
+        self,
+        docs: list,
+        y=None,
+        run_name: str = "bertopic_run",
+        architecture_name: str = "umap_hdbscan",
+        type_name: str = "unsupervised",
+        logger=None,
+    ):
         """
         Executes the topic modeling pipeline.
         """
@@ -188,7 +174,6 @@ class TopicModeler:
 
         run_cfg = self.RUN_TYPES[type_name]
         print(f"    Running type: {type_name}")
-
 
         # Wandb
         if cfg.get("project.wandb_logging") and logger is None:
@@ -205,12 +190,14 @@ class TopicModeler:
         embeddings = self.embedding_model.encode(docs, show_progress_bar=True)
 
         # 2. Dimensionality Reduction
-        print(f"    Loading dimensionality reduction model ({architecture['reduction']})...")
-        dim_red_model = self.get_reduction(architecture['reduction'])
+        print(
+            f"    Loading dimensionality reduction model ({architecture['reduction']})..."
+        )
+        dim_red_model = self.get_reduction(architecture["reduction"])
 
         # 3. Clustering
         print(f"    Loading clustering model ({architecture['clustering']})...")
-        cluster_model = self.get_clustering(architecture['clustering'])
+        cluster_model = self.get_clustering(architecture["clustering"])
 
         # 4. Vectorizer (Topic Representation) min_df=2 ensures words appear in at least 2 topics (or docs), preventing the crash if topics are few.
         vectorizer_model = CountVectorizer(
@@ -227,10 +214,9 @@ class TopicModeler:
         seed_topic_list = None
         if run_cfg["use_seed_topics"]:
             seed_topic_list = self.config.get("seed_topics", [])
-            print(f"    First 3 seed topics:")
+            print("    First 3 seed topics:")
             for i, seed in enumerate(seed_topic_list[:3]):
                 print(f"      Topic {i}: {seed[:5]}...")
-
 
         # 6. Initialize BERTopic (ONCE)
         self.topic_model = BERTopic(
@@ -240,24 +226,26 @@ class TopicModeler:
             vectorizer_model=vectorizer_model,
             seed_topic_list=seed_topic_list,
             language=self.config.get("language", "multilingual"),
-            calculate_probabilities=architecture_name  == "umap_hdbscan",
+            calculate_probabilities=architecture_name == "umap_hdbscan",
             verbose=True,
-            nr_topics=15
+            nr_topics=15,
         )
-
-
 
         print("--> [BERTopic] Fitting model...")
 
         # 7. Fit model (semi-supervised if required)
         if run_cfg["use_labels"]:
             if y is None:
-                raise ValueError("Semi-supervised mode requires y labels, but y=None was passed")
+                raise ValueError(
+                    "Semi-supervised mode requires y labels, but y=None was passed"
+                )
 
             if len(y) != len(docs):
-                raise ValueError(f"y must have same length as docs. Got y={len(y)}, docs={len(docs)}")
+                raise ValueError(
+                    f"y must have same length as docs. Got y={len(y)}, docs={len(docs)}"
+                )
 
-            if architecture_name  == "umap_hdbscan":
+            if architecture_name == "umap_hdbscan":
                 topics, probs = self.topic_model.fit_transform(
                     docs, embeddings=embeddings, y=y
                 )
@@ -267,86 +255,85 @@ class TopicModeler:
                 )
                 probs = None
         else:
-            if architecture_name  == "umap_hdbscan":
+            if architecture_name == "umap_hdbscan":
                 topics, probs = self.topic_model.fit_transform(
                     docs, embeddings=embeddings
                 )
             else:
-                topics = self.topic_model.fit_transform(
-                    docs, embeddings=embeddings
-                )
+                topics = self.topic_model.fit_transform(docs, embeddings=embeddings)
                 probs = None
 
-        
-        
         if cfg.get("reductionNumberTopic"):
-          # 8. Merge topics
-          fig=self.topic_model.visualize_topics()
-          fig.write_html("./out/topic.html")
+            # 8. Merge topics
+            fig = self.topic_model.visualize_topics()
+            fig.write_html("./out/topic.html")
 
-          # Merge by number of topics
-          numberOfTopics = input("Look at topic.html, If you want to merge topics insert a number (+1), 0 otherwise")
-          if numberOfTopics.isdigit():
-            nr = int(numberOfTopics)
-            if nr != 0:
-                self.topic_model.reduce_topics(docs, nr_topics=nr)
-                topics = self.topic_model.topics_
-                
-                if architecture_name  == "umap_hdbscan":
-                    _, probs = self.topic_model.transform(docs)
+            # Merge by number of topics
+            numberOfTopics = input(
+                "Look at topic.html, If you want to merge topics insert a number (+1), 0 otherwise"
+            )
+            if numberOfTopics.isdigit():
+                nr = int(numberOfTopics)
+                if nr != 0:
+                    self.topic_model.reduce_topics(docs, nr_topics=nr)
+                    topics = self.topic_model.topics_
+
+                    if architecture_name == "umap_hdbscan":
+                        _, probs = self.topic_model.transform(docs)
+                    else:
+                        _ = self.topic_model.transform(docs)
+                        probs = None
+
+            newfig = self.topic_model.visualize_topics()
+            newfig.write_html("./out/newTopic.html")
+
+            # Merge by specific topics
+            merge = input(
+                "Look at topic.html. Do you want to merge specific topics? (Y/N): "
+            )
+
+            while merge.upper() == "Y":
+                print(
+                    "Insert topic pairs to merge, one per line.\n"
+                    "Example:\n"
+                    "1 2\n"
+                    "3 4\n"
+                    "Empty line to finish."
+                )
+
+                list_to_merge = []
+
+                while True:
+                    line = input()
+                    if line.strip() == "":
+                        break
+                    try:
+                        a, b = map(int, line.split())
+                        list_to_merge.append([a, b])
+                    except ValueError:
+                        print("Invalid format. Use: <int> <int>")
+
+                if not list_to_merge:
+                    print("No valid topic pairs provided. Skipping merge.")
                 else:
-                    _ = self.topic_model.transform(docs)
-                    probs = None
+                    self.topic_model.merge_topics(docs, list_to_merge)
+                    topics = self.topic_model.topics_
+                    if architecture_name == "umap_hdbscan":
+                        _, probs = self.topic_model.transform(docs)
+                    else:
+                        _ = self.topic_model.transform(docs)
+                        probs = None
 
-          newfig = self.topic_model.visualize_topics()
-          newfig.write_html("./out/newTopic.html")
+                    newfig = self.topic_model.visualize_topics()
+                    newfig.write_html("./out/newTopic.html")
 
-          # Merge by specific topics
-          merge = input("Look at topic.html. Do you want to merge specific topics? (Y/N): ")
+                    print(f"Merged topic pairs: {list_to_merge}")
 
-          while merge.upper() == "Y":
-
-              print(
-                  "Insert topic pairs to merge, one per line.\n"
-                  "Example:\n"
-                  "1 2\n"
-                  "3 4\n"
-                  "Empty line to finish."
-              )
-
-              list_to_merge = []
-
-              while True:
-                  line = input()
-                  if line.strip() == "":
-                      break
-                  try:
-                      a, b = map(int, line.split())
-                      list_to_merge.append([a, b])
-                  except ValueError:
-                      print("Invalid format. Use: <int> <int>")
-
-              if not list_to_merge:
-                  print("No valid topic pairs provided. Skipping merge.")
-              else:
-                  self.topic_model.merge_topics(docs, list_to_merge)
-                  topics = self.topic_model.topics_
-                  if architecture_name  == "umap_hdbscan":
-                    _, probs = self.topic_model.transform(docs)
-                  else:
-                    _ = self.topic_model.transform(docs)
-                    probs = None
-
-                  newfig = self.topic_model.visualize_topics()
-                  newfig.write_html("./out/newTopic.html")
-
-                  print(f"Merged topic pairs: {list_to_merge}")
-
-              merge = input("Look at newTopic.html. Merge more topics? (Y/N): ")
+                merge = input("Look at newTopic.html. Merge more topics? (Y/N): ")
 
         if cfg.get("llmRepresentation"):
             print("    Loading Llama 3.1 8B Instruct...")
-            model_id ="meta-llama/Llama-3.1-8B-Instruct"
+            model_id = "meta-llama/Llama-3.1-8B-Instruct"
 
             tokenizer = AutoTokenizer.from_pretrained(model_id)
             tokenizer.pad_token = tokenizer.eos_token  # Fix per padding
@@ -354,9 +341,9 @@ class TopicModeler:
             # Quantizzazione
             bnb_config = transformers.BitsAndBytesConfig(
                 load_in_4bit=True,
-                bnb_4bit_quant_type='nf4',
+                bnb_4bit_quant_type="nf4",
                 bnb_4bit_use_double_quant=True,
-                bnb_4bit_compute_dtype=torch.bfloat16
+                bnb_4bit_compute_dtype=torch.bfloat16,
             )
 
             model = AutoModelForCausalLM.from_pretrained(
@@ -364,11 +351,10 @@ class TopicModeler:
                 quantization_config=bnb_config,
                 device_map="auto",
                 torch_dtype=torch.bfloat16,
-                low_cpu_mem_usage=True
+                low_cpu_mem_usage=True,
             )
 
-         
-            prompt ="""
+            prompt = """
                 Sei un analista di feedback utente esperto. Il tuo compito è sintetizzare recensioni e parole chiave in un'unica categoria standardizzata.
 
                 INPUT DA ANALIZZARE:
@@ -391,44 +377,48 @@ class TopicModeler:
                 OUTPUT:
             """
 
-
-
             generator = pipeline(
-                'text-generation',
+                "text-generation",
                 model=model,
                 tokenizer=tokenizer,
-                max_new_tokens=8,          
+                max_new_tokens=8,
                 do_sample=True,
-                temperature=0.1,            
+                temperature=0.1,
                 top_p=0.9,
                 repetition_penalty=1.2,
-                return_full_text=False
+                return_full_text=False,
             )
             topic_labels = {}
             for topic_id in range(len(self.topic_model.get_topic_info()) - 1):
-             
-                topic_words = [word for word, _ in self.topic_model.get_topic(topic_id)[:10]]
-                topic_docs = [doc for doc, topic in zip(docs, topics) if topic == topic_id][:5]
-                
-              
+                topic_words = [
+                    word for word, _ in self.topic_model.get_topic(topic_id)[:10]
+                ]
+                topic_docs = [
+                    doc for doc, topic in zip(docs, topics) if topic == topic_id
+                ][:5]
+
                 prompt_filled = prompt.replace("[DOCUMENTS]", "\n".join(topic_docs[:3]))
-                prompt_filled = prompt_filled.replace("[KEYWORDS]", ", ".join(topic_words))
-                
-              
+                prompt_filled = prompt_filled.replace(
+                    "[KEYWORDS]", ", ".join(topic_words)
+                )
+
                 result = generator(prompt_filled)
-                label = result[0]['generated_text'].strip()
+                label = result[0]["generated_text"].strip()
                 clean_label_text = self.clean_label(label)
                 print(f"Topic {topic_id}: {label} -> {clean_label_text}")
                 topic_labels[topic_id] = clean_label_text
 
-            
             self.topic_model.set_topic_labels(topic_labels)
 
             representation_model = TextGeneration(generator, prompt=prompt)
 
-            self.topic_model.update_topics(docs,representation_model=representation_model)
-        
-        fig_hierarchy = self.topic_model.visualize_hierarchy(top_n_topics=50, custom_labels=True)
+            self.topic_model.update_topics(
+                docs, representation_model=representation_model
+            )
+
+        fig_hierarchy = self.topic_model.visualize_hierarchy(
+            top_n_topics=50, custom_labels=True
+        )
         fig_hierarchy.write_html("./out/fig_hierarchy.html")
 
         # 9. Logging to WandB
@@ -448,7 +438,8 @@ class TopicModeler:
 
                 # B. Bar Chart (Top 15)
                 logger.log_plot(
-                    "plot_barchart", self.topic_model.visualize_barchart(top_n_topics=15)
+                    "plot_barchart",
+                    self.topic_model.visualize_barchart(top_n_topics=15),
                 )
 
                 # C. Hierarchy (Tree) - Addresses Task 3b

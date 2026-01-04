@@ -3,6 +3,18 @@ project:
   wandb_logging: false
   seed: 42
 
+pipeline:
+  # Architecture: "umap_hdbscan", "kernelpca_spectral", "kernelpca_kmeans", "umap_spectral", "umap_kmeans"
+  architecture: "umap_hdbscan"
+  # Run type: "unsupervised", "guided", "semi_supervised"
+  run_type: "unsupervised"
+  # Stopword strategy: "none", "italian", "tfidf", "delta", "union"
+  stopword_strategy: "none"
+  # Minimum examples required for a label in semi-supervised mode
+  min_label_examples: 25
+  # Percentage of labeled data for semi-supervised learning
+  supervised_sample_ratio: 0.15
+
 paths:
   data: "./data/dataset_v2.xlsx"
   taxonomy: "./data/taxonomy_v2.xlsx"
@@ -109,7 +121,7 @@ topic_modeling:
   # If you get < 10 topics: Lower min_cluster_size in config.yaml (e.g., try 10 or 7).
   # If you get > 50 topics: Increase min_cluster_size to merge smaller micro-clusters.
   hdbscan:
-    min_cluster_size: 15
+    min_cluster_size: 20
     cluster_selection_method: "eom"
   #K-means
   kmeans:
@@ -140,7 +152,15 @@ topic_modeling:
 
   #GUIDED TOPIC MODELING
   seed_topics:
-    - ["accesso", "login", "password", "codice verifica", "biometrico", "credenziali", "dispositivo"]
+    - [
+        "accesso",
+        "login",
+        "password",
+        "codice verifica",
+        "biometrico",
+        "credenziali",
+        "dispositivo",
+      ]
     - ["bonifici", "bonifico", "istantanei", "periodici", "trasferimento"]
     - ["carta", "spedizione", "design", "rinnovo", "materiale", "blocco"]
     - ["costi", "commissioni", "bancario", "elevate"]
