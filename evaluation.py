@@ -30,7 +30,7 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics, embedding
     clean_embeddings = embeddings[mask]
     clean_topics = topics[mask]
 
-    # Calculate Silhouette Score
+    # Silhouette Score
     # Range: -1 to 1. Higher is better (more distinct topics).
     silhouette = silhouette_score(clean_embeddings, clean_topics)
 

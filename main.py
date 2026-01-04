@@ -16,7 +16,7 @@ from mwe import MWEExtractor
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
-from utils import ensure_directories, load_taxonomy, seed_everything, save_reviews_with_topic_probabilities, export_excel_safe
+from utils import ensure_directories, load_taxonomy, seed_everything, save_reviews_with_topic_probabilities
 from nltk.corpus import stopwords
 from multilabel import get_top3_topics_per_review
 
@@ -329,78 +329,105 @@ def main():
 
         taxonomy_df = load_taxonomy(tax_path)
         if not taxonomy_df.empty:
-              mapper = TaxonomyMapper(embedding_model=tm.embedding_model)
+            
+            mapper = TaxonomyMapper(embedding_model=tm.embedding_model)
 
-              mapping_df = mapper.map_topics_to_taxonomy(model, taxonomy_df)
+            mapping_df = mapper.map_topics_to_taxonomy(model, taxonomy_df)
 
-              print(mapping_df.head())
-              out_file_map = cfg.get("paths.output_mapping")
-              mapping_df = mapping_df.replace(
-                    {
-                        "\r": "",
-                        "\n": "",
-                        "_x00d_": "",
-                        "_x00d": "",
-                    },
-                    regex=True
-                )
-              mapping_df.to_excel(out_file_map, index=False)
-              print(f"--> [Done] Taxonomy comparison saved to {out_file_map}")
+            print(mapping_df.head())
+            out_file_map = cfg.get("paths.output_mapping")
+            mapping_df = mapping_df.replace(
+                {
+                    "\r": "",
+                    "\n": "",
+                    "_x00d_": "",
+                    "_x00d": "",
+                },
+                regex=True
+            )
+            mapping_df.to_excel(out_file_map, index=False)
+            print(f"--> [Done] Taxonomy comparison saved to {out_file_map}")
 
+            # Add best matching label to the main dataframe with topics
+            # Create a mapping dictionary: Topic_ID -> Best_Match_Label
+            topic_to_label = dict(zip(mapping_df["Topic_ID"], mapping_df["Best_Match_Label"]))
 
-              # Add best matching label to the main dataframe with topics
-              # Create a mapping dictionary: Topic_ID -> Best_Match_Label
-              topic_to_label = dict(zip(mapping_df["Topic_ID"], mapping_df["Best_Match_Label"]))
+            # Add the label column to the main dataframe
+            df["taxonomy_label"] = df["topic"].map(topic_to_label)
+            df["taxonomy_label"] = df["taxonomy_label"].fillna("No Match (Outlier)")
 
-              # Add the label column to the main dataframe
-              df["taxonomy_label"] = df["topic"].map(topic_to_label)
-              df["taxonomy_label"] = df["taxonomy_label"].fillna("No Match (Outlier)")
+            # Re-save the updated dataframe with taxonomy labels
+            final_path = "resultswithtaxonomy.xlsx"
+            df = df.replace(
+                {
+                    "\r": "",
+                    "\n": "",
+                    "_x00d_": "",
+                    "_x00d": "",
+                },
+                regex=True
+            )
+            df.to_excel(final_path, index=False)
 
-              # Re-save the updated dataframe with taxonomy labels
-              final_path = "resultswithtaxonomy.xlsx"
-              df = df.replace(
-                    {
-                        "\r": "",
-                        "\n": "",
-                        "_x00d_": "",
-                        "_x00d": "",
-                    },
-                    regex=True
-                )
-              df.to_excel(final_path, index=False)
+            print(f"--> [Done] Updated results with taxonomy labels saved to {final_path}")
 
-              print(f"--> [Done] Updated results with taxonomy labels saved to {final_path}")
+            # Match old labels to newer ones to ensure consistency
+            mapping_df_old_to_new = taxonomy_df[taxonomy_df["Old_Label"].notna()][["Old_Label", "Label"]]
+            old_to_new = dict(zip(mapping_df_old_to_new["Old_Label"], mapping_df_old_to_new["Label"]))
 
-              #ExactMatch count
-              count=0
-              tot=len(df)
+            def convert_tags(tag_list):
+                new_list = []
+                for tag in list(tag_list):
+                    if tag in old_to_new:
+                        new_list.append(old_to_new[tag])
+                    else:
+                        new_list.append(tag)
+                return new_list
 
-              def included_or_equal(a, b):
-                if pd.isna(a) or pd.isna(b):
+            df["labels_list"] = df["labels_list"].apply(convert_tags)
+
+            #ExactMatch count
+            count=0
+            tot=len(df)
+
+            def included_or_equal(a, b):
+                # a: taxonomy_label
+                # b: labels (list | np.ndarray | str | NaN)
+
+                # --- check a ---
+                if a is None or (isinstance(a, float) and pd.isna(a)):
                     return False
 
-                # caso: b è lista
+                # --- check b ---
+                if b is None:
+                    return False
+
+                # caso: numpy array
+                if isinstance(b, np.ndarray):
+                    b = b.tolist()
+
+                # caso: lista
                 if isinstance(b, list):
                     return a in b
 
-                # caso: b è stringa
+                # caso: stringa
                 if isinstance(b, str):
-                    return a in b
+                    return a == b or a in b
 
+                # fallback
                 return False
 
-              mask = df.apply(lambda row: included_or_equal(row["taxonomy_label"], row["labels"]), axis=1)
-              count = mask.sum()
-              print(count/tot)
+            mask = df.apply(lambda row: included_or_equal(row["taxonomy_label"], row["labels_list"]), axis=1)
+            count = mask.sum()
+            print("Exact Match: ", count/tot)
 
 
-
-              if main_logger:
-                  main_logger.log_artifact(
-                      out_file_map,
-                      "dataset",
-                      "taxonomy_mapping",
-                  )
+            if main_logger:
+                main_logger.log_artifact(
+                    out_file_map,
+                    "dataset",
+                    "taxonomy_mapping",
+                )
         else:
               print("--> [Warning] No taxonomy loaded. Skipping mapping.")
 
