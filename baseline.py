@@ -1,10 +1,73 @@
 import nltk
 import pandas as pd
+import numpy as np
 from nltk.corpus import stopwords
 from sklearn.decomposition import NMF, LatentDirichletAllocation
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
 
 from config import cfg
+
+def calculate_baseline_topic_metrics(
+    model,
+    vectorizer,
+    embedding_model,
+    top_k=10,
+    logger=None,
+    model_name="baseline"
+):
+    """
+    Computes:
+    - Topic Coherence (embedding-based)
+    - Topic Diversity
+    For LDA / NMF models.
+    """
+
+    print(f"--> [Evaluation] Calculating metrics for {model_name}...")
+
+    feature_names = vectorizer.get_feature_names_out()
+    topic_words = []
+
+    # Extract top-k words per topic 
+    for topic in model.components_:
+        top_indices = topic.argsort()[: -top_k - 1 : -1]
+        words = [feature_names[i] for i in top_indices]
+        topic_words.append(words)
+
+    # Topic Coherence
+    topic_coherences = []
+
+    for words in topic_words:
+        if len(words) < 2:
+            continue
+
+        embeddings = embedding_model.encode(words)
+        sim_matrix = cosine_similarity(embeddings)
+        mean_sim = np.mean(sim_matrix[np.triu_indices_from(sim_matrix, k=1)])
+        topic_coherences.append(mean_sim)
+
+    topic_coherence = float(np.mean(topic_coherences)) if topic_coherences else 0.0
+    print(f"    Topic Coherence: {topic_coherence:.4f}")
+
+    # Topic Diversity
+    all_words = [w for topic in topic_words for w in topic]
+    topic_diversity = len(set(all_words)) / len(all_words) if all_words else 0.0
+    print(f"    Topic Diversity: {topic_diversity:.4f}")
+
+    # Wandb
+    if cfg.get("project.wandb_logging") and logger is not None:
+        logger.log_metrics(
+            {
+                f"{model_name}_topic_coherence": topic_coherence,
+                f"{model_name}_topic_diversity": topic_diversity,
+            }
+        )
+
+    return {
+        "topic_coherence": topic_coherence,
+        "topic_diversity": topic_diversity,
+    }
 
 
 class BaselineModeler:
@@ -70,7 +133,15 @@ class BaselineModeler:
         # Create DataFrame
         df_res = pd.DataFrame(results)
         print("--> [Baselines] Finished.")
-        return df_res
+        
+        return {
+            "results_df": df_res,
+            "lda_model": lda,
+            "lda_vectorizer": tf_vectorizer,
+            "nmf_model": nmf,
+            "nmf_vectorizer": tfidf_vectorizer,
+        }
+
 
     def _extract_topics(self, model, vectorizer, model_name, results_list):
         feature_names = vectorizer.get_feature_names_out()

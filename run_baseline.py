@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-from baseline import BaselineModeler
+from baseline import BaselineModeler, calculate_baseline_topic_metrics
 from cleaner import DataProcessor
 from config import cfg
 from duplicate_remover import DuplicateRemover
@@ -11,6 +11,8 @@ from mwe import MWEExtractor
 from sentiment_analyzer import SentimentEnsemble
 from translation import TranslatorModule
 from utils import ensure_directories, seed_everything
+from sentence_transformers import SentenceTransformer
+
 
 
 def plot_top_words(model_name, results_df):
@@ -75,6 +77,7 @@ def run_baselines():
         df = pd.read_pickle(cache_path)
         print(f"--> [Cache] Loaded {len(df)} reviews from cache.")
         loader.df = df
+
     else:
         print("--> [Cache] No cache found. Running full preprocessing...")
 
@@ -97,24 +100,24 @@ def run_baselines():
         print(f"--> [Cache] Saving to '{cache_path}'...")
         df.to_pickle(cache_path)
 
-    # 4. FILTERING & REFINEMENT
-    print("--> [Filter] Keeping ONLY Negative reviews for Baselines...")
-    df = df[df["sentiment"] == "negative"].reset_index(drop=True)
-    print(f"--> [Filter] {len(df)} negative reviews remaining.")
+        # 4. FILTERING & REFINEMENT
+        print("--> [Filter] Keeping ONLY Negative reviews for Baselines...")
+        df = df[df["sentiment"] == "negative"].reset_index(drop=True)
+        print(f"--> [Filter] {len(df)} negative reviews remaining.")
 
-    loader.df = df
+        loader.df = df
 
-    # Junk Removal
-    df = loader.remove_junk_reviews(column="clean_text")
+        # Junk Removal
+        df = loader.remove_junk_reviews(column="clean_text")
 
-    # Deduplication
-    deduplicator = DuplicateRemover()
-    df = deduplicator.remove_duplicates(df, text_col="clean_text")
+        # Deduplication
+        deduplicator = DuplicateRemover()
+        df = deduplicator.remove_duplicates(df, text_col="clean_text")
 
-    # Multi-Word Expressions
-    mwe_extractor = MWEExtractor(df=df)
-    _ = mwe_extractor.extract_mwe()
-    df = mwe_extractor.apply_mwe()
+        # Multi-Word Expressions
+        mwe_extractor = MWEExtractor(df=df)
+        _ = mwe_extractor.extract_mwe()
+        df = mwe_extractor.apply_mwe()
 
     # 5. PREPARE DOCUMENTS
     docs = df["clean_text_mwe"].tolist()
@@ -129,10 +132,34 @@ def run_baselines():
     baseline_modeler = BaselineModeler()
     df_results = baseline_modeler.run(docs)
 
-    # 7. LOGGING & SAVING
+    # 7. METRICS
+    embedding_model = SentenceTransformer(cfg.get("topic_modeling.embedding_model"))
+
+    # LDA metrics
+    lda_metrics = calculate_baseline_topic_metrics(
+        model=df_results["lda_model"],
+        vectorizer=df_results["lda_vectorizer"],
+        embedding_model=embedding_model,
+        top_k=10,
+        logger=logger,
+        model_name="LDA"
+    )
+
+    # NMF metrics 
+    nmf_metrics = calculate_baseline_topic_metrics(
+        model=df_results["nmf_model"],
+        vectorizer=df_results["nmf_vectorizer"],
+        embedding_model=embedding_model,
+        top_k=10,
+        logger=logger,
+        model_name="NMF"
+    )
+
+
+    # 8. LOGGING & SAVING
     out_dir = "./out"
     out_path = f"{out_dir}/baseline_comparison.xlsx"
-    df_results.to_excel(out_path, index=False)
+    df_results["results_df"].to_excel(out_path, index=False)
     print(f"--> [Done] Baseline results saved to: {out_path}")
 
     if logger:

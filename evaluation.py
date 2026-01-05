@@ -263,9 +263,6 @@ class ExactMatcher:
         return precision
     
 
-
-
-
 def to_set(x):
     if x is None or (isinstance(x, float) and pd.isna(x)):
         return set()

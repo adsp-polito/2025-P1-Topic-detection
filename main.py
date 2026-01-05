@@ -269,7 +269,7 @@ def main():
         results_df = multi_label_modeler.get_top3_topics_per_review(indices=None,
             top_words=5,
             alpha=0.85,
-            min_abs_score = 0.30,
+            min_abs_score = 0.20,
             max_labels=3)
         results_df.to_excel("reviews_top3_topics.xlsx", index=False)
         print(f"Salvato {len(results_df)} review con top 3 topic")
@@ -368,7 +368,10 @@ def main():
 
             # Add the label column to the main dataframe
             df["taxonomy_label"] = df["topic"].map(topic_to_label)
-            df["taxonomy_label"] = df["taxonomy_label"].fillna("No Match (Outlier)")
+            #df["taxonomy_label"] = df["taxonomy_label"].fillna(["No Match (Outlier)"])
+            df["taxonomy_label"] = df["taxonomy_label"].apply(
+                lambda x: [] if pd.isna(x) else x
+            )
             df["taxonomy_labels_multi"] = df["multi_topics"].apply(
                 lambda x: map_topics_to_taxonomy_list(x, topic_to_label)
             )

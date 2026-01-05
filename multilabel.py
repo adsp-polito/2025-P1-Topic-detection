@@ -46,14 +46,15 @@ class MultiLabelModeler:
             max_score = sorted_scores[0]
 
             # Multi-label selection (include -1 if relevant)
-            selected = [
+            candidates = [
                 (int(tid), float(score))
                 for tid, score in zip(sorted_idx, sorted_scores)
                 if score >= alpha * max_score
             ][:max_labels]
 
+            
             # Lista dei topic selezionati
-            multi_topics = [tid for tid, _ in selected]
+            multi_topics = [tid for tid, _ in candidates]
 
             old_topic = int(self.topics[i])
 
@@ -62,9 +63,37 @@ class MultiLabelModeler:
             else:
                 # primo topic valido (≠ -1) tra quelli selezionati
                 assigned_primary = next(
-                    (tid for tid, score in selected if tid != -1 and score >= min_abs_score),
+                    (tid for tid, score in candidates if tid != -1 and score >= min_abs_score),
                     -1
                 )
+            
+
+            """
+            old_topic = int(self.topics[i])
+
+            # 1. Review is not an outlier --> assign all multi topics
+            if old_topic != -1:
+                selected = candidates
+                assigned_primary = old_topic
+
+            # 1. Review is an outlier --> assign all multi topics only if above the outlier treshold (keep consistency)
+            else:
+                valid = [
+                    (tid, score)
+                    for tid, score in candidates
+                    if tid != -1 and score >= min_abs_score
+                ]
+
+                # remains an outlier
+                if len(valid) == 0:
+                    selected = []
+                    assigned_primary = -1
+                else:
+                    selected = valid
+                    assigned_primary = valid[0][0]
+
+            multi_topics = [tid for tid, _ in selected]
+            """
 
             row = {
                 "review_idx": i,
@@ -76,7 +105,7 @@ class MultiLabelModeler:
             }
 
             # Dettaglio top-k topic
-            for rank, (topic_id, score) in enumerate(selected, start=1):
+            for rank, (topic_id, score) in enumerate(candidates, start=1):
                 row[f"topic_{rank}"] = topic_id
                 row[f"topic_{rank}_score"] = score
 
