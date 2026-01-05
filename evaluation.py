@@ -122,8 +122,6 @@ class TaxonomyMapper:
             discovered_texts.append(" ".join(words))
             topic_ids.append(t_id)
 
-
-            # FIX VERO
             if hasattr(topic_model, "custom_labels_") and topic_model.custom_labels_:
                 if idx < len(topic_model.custom_labels_):
                     label = topic_model.custom_labels_[idx]
@@ -177,3 +175,137 @@ class TaxonomyMapper:
         df_mapping = df_mapping.sort_values(by="Similarity_Score", ascending=False)
 
         return df_mapping
+
+
+class ExactMatcher:
+    """
+    Compares discovered BERTopic topics assignment with the HYPE assignments, i
+    in different modalities
+    """
+
+    def __init__(self, df):
+        self.df = df
+        self.n_rows = len(df)
+
+    def compute_exact_match_mono(self):
+
+        count = 0
+
+        mask = self.df.apply(
+            lambda row: included_or_equal(
+                row["taxonomy_label"], row["labels_list"]
+            ),
+            axis=1,
+        )
+        count = mask.sum()
+        match = count / self.n_rows
+        print("Exact Match: ", match)
+
+        return match
+
+        
+    def compute_precision(self, mode="mono"):
+
+        if mode=="mono":
+            pred_column = "taxonomy_label"
+        elif mode=="multi":
+            pred_column = "taxonomy_labels_multi"
+        else:
+            print("Please provide a correct modality: mono/multi. Cuntinuing with mono")
+
+        correct = 0
+        predicted = 0
+
+        for _, row in self.df.iterrows():
+            y_pred = to_set(row[pred_column])
+            y_true = to_set(row["labels_list"])
+
+            correct += len(y_pred & y_true)
+            predicted += len(y_pred)
+
+        if predicted:
+            precision = round(correct / predicted, 4) 
+        else:
+            precision = 0.0
+        print(f"Precision using {mode} mode for topics: ", precision)
+
+        return precision
+    
+
+    def compute_precision_translation(self, mode="mono"):
+
+        if mode=="mono":
+            pred_column = "taxonomy_label"
+        elif mode=="multi":
+            pred_column = "taxonomy_labels_multi"
+        else:
+            print("Please provide a correct modality: mono/multi. Cuntinuing with mono")
+
+        correct = 0
+        predicted = 0
+
+        mask = self.df["detected_lang"] != "it"
+        df_translated = self.df[mask]
+
+        for _, row in df_translated.iterrows():
+            y_pred = to_set(row[pred_column])
+            y_true = to_set(row["labels_list"])
+
+            correct += len(y_pred & y_true)
+            predicted += len(y_pred)
+
+        if predicted:
+            precision = round(correct / predicted, 4) 
+        else:
+            precision = 0.0
+        print(f"Precision on TRANSLATED reviews only, using {mode} mode for topics: ", precision)
+
+        return precision
+    
+
+
+
+
+def to_set(x):
+    if x is None or (isinstance(x, float) and pd.isna(x)):
+        return set()
+    if isinstance(x, list):
+        return set(x)
+    if isinstance(x, str):
+        return {x}
+    return set()
+
+
+def included_or_equal(a, b):
+    """
+    Check if taxonomy_label (a) matches any of the labels (b).
+    Returns True if a is equal to any element in b (exact match only).
+    """
+    # --- check a ---
+    if a is None:
+        return False
+
+    # --- check b ---
+    if b is None:
+        return False
+
+    # b is a numpy array
+    if isinstance(b, np.ndarray):
+        b = b.tolist()
+    
+    # case 1: both a and b dont have labels
+    if a=="No Match (Outlier)" and b==[]:
+        return True
+
+    # case 2: b is a list - check for match in list
+    if isinstance(b, list):
+        return a in b
+
+    # case 3: b is a string - check for match in string
+    if isinstance(b, str):
+        return a == b or a in b
+
+    # fallback
+    return False    
+
+

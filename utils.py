@@ -49,7 +49,7 @@ def load_taxonomy(path: str) -> pd.DataFrame:
         # Standardize columns
         # We rename the first two columns to ensure consistent access
         df_tax.rename(
-            columns={df_tax.columns[0]: "Label", df_tax.columns[2]: "Description"},
+            columns={df_tax.columns[0]: "Label", df_tax.columns[2]: "Description", df_tax.columns[3]: "Old_Label"},
             inplace=True,
         )
 
@@ -63,7 +63,7 @@ def load_taxonomy(path: str) -> pd.DataFrame:
         )
 
         print(f"--> [Taxonomy] Loaded {len(df_tax)} labels from {path}")
-        return df_tax[["Label", "Description", "Embedding_Text"]]
+        return df_tax[["Label", "Description", "Embedding_Text", "Old_Label"]]
     except Exception as e:
         print(f"--> [Error] Could not load taxonomy: {e}")
         return pd.DataFrame()
@@ -136,3 +136,5 @@ def save_reviews_with_topic_probabilities(
     else:
       probFlag= "with" 
     print(f"[Saved] Review-topic {probFlag} probabilities → {output_path}")
+
+

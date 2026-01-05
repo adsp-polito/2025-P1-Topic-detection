@@ -11,19 +11,18 @@ from nltk.corpus import stopwords
 from cleaner import DataProcessor
 from config import cfg
 from duplicate_remover import DuplicateRemover
-from evaluation import TaxonomyMapper, calculate_coherence_metrics
+from evaluation import TaxonomyMapper, ExactMatcher, calculate_coherence_metrics
 from logger import WandBLogger
-from multilabel import get_top3_topics_per_review
 from mwe import MWEExtractor
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
+from multilabel import MultiLabelModeler, map_topics_to_taxonomy_list
 from utils import (
     ensure_directories,
     load_taxonomy,
     save_reviews_with_topic_probabilities,
-    seed_everything,
-)
+    seed_everything)
 
 
 def main():
@@ -65,15 +64,15 @@ def main():
     data_path = cfg.get("paths.data")
     cache_path = cfg.get("paths.cache")
     use_cache = cfg.get("preprocessing.use_cache")
-    final_cache_path = "./out/cache_preprocessing_full.pkl"
+    
 
     loader = DataProcessor(data_path)
     df = None
 
     # --- CHECKPOINT LOGIC ---
-    if use_cache and os.path.exists(final_cache_path):
-        print(f"--> [Cache] Found cached file '{final_cache_path}'. Loading...")
-        cache_obj = pd.read_pickle(final_cache_path)
+    if use_cache and os.path.exists(cache_path):
+        print(f"--> [Cache] Found cached file '{cache_path}'. Loading...")
+        cache_obj = pd.read_pickle(cache_path)
 
         # Handle both dictionary format (from hyperparameters.py) and DataFrame format
         if isinstance(cache_obj, dict):
@@ -126,8 +125,8 @@ def main():
         df = mwe_extractor.apply_mwe()
 
         # SAVE CACHE
-        print(f"--> [Cache] Saving to '{final_cache_path}'...")
-        df.to_pickle(final_cache_path)
+        print(f"--> [Cache] Saving to '{cache_path}'...")
+        df.to_pickle(cache_path)
 
     # --- EDA LOGGING (Sentiment Distribution) ---
     if cfg.get("project.wandb_logging"):
@@ -164,6 +163,8 @@ def main():
         return " ".join([w for w in text.split() if w.lower() not in stopword_set])
 
     texts = df["clean_text_mwe"].tolist()
+
+    # All possible strategies: "none", "italian", "tfidf", "delta", "union"
 
     if stopword_strategy == "none":
         docs = texts
@@ -239,6 +240,7 @@ def main():
         print(f"Supervised docs: {(y != -1).sum()}")
         print(f"Unsupervised docs: {(y == -1).sum()}")
 
+        # Topic modeling
         tm = TopicModeler()
 
         model, topics, probs = tm.run(
@@ -250,6 +252,7 @@ def main():
             logger=main_logger,
         )
 
+        """
         output_probs_path = "./out/reviews_topic_probabilities.xlsx"
 
         save_reviews_with_topic_probabilities(
@@ -259,18 +262,23 @@ def main():
             output_path=output_probs_path,
             top_k=3,
         )
+        """
 
-        # 3 TOPICS FOR REVIEW
-        if definedArchitecture_name == "umap_hdbscan":
-            results_df = get_top3_topics_per_review(model, docs, topics, probs)
-            results_df.to_csv("reviews_top3_topics.csv", index=False)
-            df["multi_topics"] = results_df["multi_topics"]
-            print(f"Salvato {len(results_df)} review con top 3 topic")
+        # MULTILABELING
+        multi_label_modeler = MultiLabelModeler(model, docs, topics, probs)
+        results_df = multi_label_modeler.get_top3_topics_per_review(indices=None,
+            top_words=5,
+            alpha=0.85,
+            min_abs_score = 0.30,
+            max_labels=3)
+        results_df.to_excel("reviews_top3_topics.xlsx", index=False)
+        print(f"Salvato {len(results_df)} review con top 3 topic")
 
         # Save Basic Results
         if isinstance(topics, tuple):
             topics = topics[0]
         df["topic"] = topics
+        df["multi_topics"] = results_df["multi_topics"]
 
         n_outliers = len(df[df["topic"] == -1])
         outlier_perc = (n_outliers / len(df)) * 100
@@ -337,8 +345,8 @@ def main():
             mapper = TaxonomyMapper(embedding_model=tm.embedding_model)
 
             mapping_df = mapper.map_topics_to_taxonomy(model, taxonomy_df)
-
             print(mapping_df.head())
+
             out_file_map = cfg.get("paths.output_mapping")
             mapping_df = mapping_df.replace(
                 {
@@ -361,6 +369,9 @@ def main():
             # Add the label column to the main dataframe
             df["taxonomy_label"] = df["topic"].map(topic_to_label)
             df["taxonomy_label"] = df["taxonomy_label"].fillna("No Match (Outlier)")
+            df["taxonomy_labels_multi"] = df["multi_topics"].apply(
+                lambda x: map_topics_to_taxonomy_list(x, topic_to_label)
+            )
 
             # Re-save the updated dataframe with taxonomy labels
             final_path = "resultswithtaxonomy.xlsx"
@@ -399,45 +410,13 @@ def main():
             df["labels_list"] = df["labels_list"].apply(convert_tags)
 
             # ExactMatch count
-            count = 0
-            tot = len(df)
+            matcher = ExactMatcher(df)
+            match = matcher.compute_exact_match_mono()
+            precision_mono = matcher.compute_precision(mode="mono")
+            precision_multi = matcher.compute_precision(mode="multi")
+            predcision_translations_mono = matcher.compute_precision_translation(mode="mono")
+            predcision_translations_multi = matcher.compute_precision_translation(mode="multi")
 
-            def included_or_equal(a, b):
-                """
-                Check if taxonomy_label (a) matches any of the labels (b).
-                Returns True if a is equal to any element in b (exact match only).
-                """
-                # --- check a ---
-                if a is None or (isinstance(a, float) and pd.isna(a)):
-                    return False
-
-                # --- check b ---
-                if b is None:
-                    return False
-
-                # caso: numpy array
-                if isinstance(b, np.ndarray):
-                    b = b.tolist()
-
-                # caso: lista - check for exact match in list
-                if isinstance(b, list):
-                    return a in b
-
-                # caso: stringa
-                if isinstance(b, str):
-                    return a == b or a in b
-
-                # fallback
-                return False
-
-            mask = df.apply(
-                lambda row: included_or_equal(
-                    row["taxonomy_label"], row["labels_list"]
-                ),
-                axis=1,
-            )
-            count = mask.sum()
-            print("Exact Match: ", count / tot)
 
             if main_logger:
                 main_logger.log_artifact(
