@@ -278,12 +278,20 @@ def main():
         if isinstance(topics, tuple):
             topics = topics[0]
         df["topic"] = topics
+        updated_topics = results_df["assigned_topic_primary"]
+        df["updated_topic"] = updated_topics
         df["multi_topics"] = results_df["multi_topics"]
 
         n_outliers = len(df[df["topic"] == -1])
         outlier_perc = (n_outliers / len(df)) * 100
         print(
             f"--> [Evaluation] Outliers (Topic -1): {n_outliers} ({outlier_perc:.2f}%)"
+        )
+
+        n_outliers = len(df[df["updated_topic"] == -1])
+        outlier_perc = (n_outliers / len(df)) * 100
+        print(
+            f"--> [Evaluation] Updated outliers after outlier reduction (Topic -1): {n_outliers} ({outlier_perc:.2f}%)"
         )
 
         if cfg.get("project.wandb_logging") and main_logger:
@@ -332,7 +340,7 @@ def main():
             model,
             docs,
             embeddings,
-            topics,
+            updated_topics,
             embedding_model=tm.embedding_model,
             logger=main_logger,
         )
@@ -367,7 +375,7 @@ def main():
             )
 
             # Add the label column to the main dataframe
-            df["taxonomy_label"] = df["topic"].map(topic_to_label)
+            df["taxonomy_label"] = df["updated_topic"].map(topic_to_label)
             #df["taxonomy_label"] = df["taxonomy_label"].fillna(["No Match (Outlier)"])
             df["taxonomy_label"] = df["taxonomy_label"].apply(
                 lambda x: [] if pd.isna(x) else x

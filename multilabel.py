@@ -53,48 +53,32 @@ class MultiLabelModeler:
             ][:max_labels]
 
             
-            # Lista dei topic selezionati
-            multi_topics = [tid for tid, _ in candidates]
+            # Lista dei topic selezionati (solo topic validi)
+            multi_topics = [tid for tid, _ in candidates if tid != -1]
 
             old_topic = int(self.topics[i])
 
             if old_topic != -1:
                 assigned_primary = old_topic
             else:
-                # primo topic valido (≠ -1) tra quelli selezionati
-                assigned_primary = next(
-                    (tid for tid, score in candidates if tid != -1 and score >= min_abs_score),
-                    -1
-                )
-            
-
-            """
-            old_topic = int(self.topics[i])
-
-            # 1. Review is not an outlier --> assign all multi topics
-            if old_topic != -1:
-                selected = candidates
-                assigned_primary = old_topic
-
-            # 1. Review is an outlier --> assign all multi topics only if above the outlier treshold (keep consistency)
-            else:
-                valid = [
-                    (tid, score)
-                    for tid, score in candidates
-                    if tid != -1 and score >= min_abs_score
-                ]
-
-                # remains an outlier
-                if len(valid) == 0:
-                    selected = []
-                    assigned_primary = -1
+                # outlier reduction SOLO se il best score supera la soglia assoluta
+                if len(candidates) > 0 and candidates[0][1] >= min_abs_score:
+                    assigned_primary = multi_topics[0] if len(multi_topics) > 0 else -1
                 else:
-                    selected = valid
-                    assigned_primary = valid[0][0]
+                    assigned_primary = -1
+                    multi_topics = []
 
-            multi_topics = [tid for tid, _ in selected]
+            """
+            # DEBUG
+            if i<30:
+                print("Candidates:", candidates)
+                print("Multilabeling:", multi_topics)
+                print("Old topic: ", old_topic)
+                print("Assigned topic", assigned_primary)
+                print(f"SCORE {alpha}*{max_score} = {alpha * max_score}")
             """
 
+    
             row = {
                 "review_idx": i,
                 "document": self.docs[i],
