@@ -1,35 +1,35 @@
-import pandas as pd
-import numpy as np
-import wandb
-import nltk   
-
 import os
-from multilabel import MultiLabelModeler
+from itertools import product
+
+import nltk
+import pandas as pd
+import wandb
+from nltk.corpus import stopwords
+from tqdm import tqdm
+
 from cleaner import DataProcessor
 from config import cfg
 from duplicate_remover import DuplicateRemover
-from evaluation import TaxonomyMapper, calculate_coherence_metrics
+from evaluation import calculate_coherence_metrics
 from logger import WandBLogger
+from multilabel import MultiLabelModeler
 from mwe import MWEExtractor
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
-from utils import ensure_directories, load_taxonomy, seed_everything
-from nltk.corpus import stopwords
-from itertools import product
-from tqdm import tqdm
-
+from utils import ensure_directories, seed_everything
 
 UMAP_GRID = {
-        "n_neighbors": [15, 20, 25],
-        "n_components": [5, 10],
-        "min_dist": [0.0, 0.1, 0.2],
-    }
+    "n_neighbors": [35, 50, 60],
+    "n_components": [5],
+    "min_dist": [0.0],
+}
 
 HDBSCAN_GRID = {
-        "min_cluster_size": [10, 15, 20, 25],
-        "min_samples": [1, 5],
-    }
+    "min_cluster_size": [30, 40],
+    "min_samples": [1, 2],
+}
+
 
 def run_tuning():
     seed_val = cfg.get("project.seed", 42)
@@ -52,22 +52,25 @@ def run_tuning():
     wandb_table = None
 
     if cfg.get("project.wandb_logging"):
-        wandb_table = wandb.Table(columns=[
-            "n_neighbors",
-            "n_components",
-            "min_dist",
-            "min_cluster_size",
-            "min_samples",
-            "n_topics",
-            "outlier_pct",
-            "silhouette",
-            "topic_coherence",
-            "topic_diversity"
-        ])
+        wandb_table = wandb.Table(
+            columns=[
+                "n_neighbors",
+                "n_components",
+                "min_dist",
+                "min_cluster_size",
+                "min_samples",
+                "n_topics",
+                "outlier_pct",
+                "silhouette",
+                "topic_coherence",
+                "topic_diversity",
+            ]
+        )
 
     # Create 'out/tuning' folder if it doesn't exist
     os.makedirs("out/tuning", exist_ok=True)
-    ensure_directories([
+    ensure_directories(
+        [
             cfg.get("paths.cache"),
             cfg.get("paths.output_tuning"),
             "./out/tuning/",
@@ -113,7 +116,9 @@ def run_tuning():
             # 4. TEXT CLEANING & EMOJI CONVERSION
             # Clean *before* sentiment analysis so emojis become text (e.g., ":thumbs_down:")
             loader.df = df
-            df = loader.basic_cleaning(text_column="final_text", target_column="clean_text")
+            df = loader.basic_cleaning(
+                text_column="final_text", target_column="clean_text"
+            )
 
             # 5. RE-CLASSIFY SENTIMENT (Ensemble)
             sentiment_engine = SentimentEnsemble()
@@ -154,55 +159,50 @@ def run_tuning():
         print(f"[Stopwords] TF-IDF: {len(tfidf_stopwords)}")
 
         def remove_stopwords(text: str, stopword_set: set):
-            return " ".join(
-                [w for w in text.split() if w.lower() not in stopword_set]
-            )
+            return " ".join([w for w in text.split() if w.lower() not in stopword_set])
 
         # -----------------------------------------------------
         # CHOOSE ONE SETTING (comment / uncomment)
         # -----------------------------------------------------
 
-         #A) NO stopword removal (baseline)
+        # A) NO stopword removal (baseline)
         docs = df["clean_text_mwe"].tolist()
         print("[Stopwords] CLASSIC: no stopword removal")
 
-        #B) Italian stopwords only (classic NLP)
-        #docs = [
+        # B) Italian stopwords only (classic NLP)
+        # docs = [
         #     remove_stopwords(text, italian_stopwords)
         #     for text in df["clean_text_mwe"]
-        #]
-        #print("[Stopwords] CLASSIC: Italian stopwords removed")
+        # ]
+        # print("[Stopwords] CLASSIC: Italian stopwords removed")
 
-        #C) TF-IDF stopwords only (domain-driven)
-        #docs = [
+        # C) TF-IDF stopwords only (domain-driven)
+        # docs = [
         #     remove_stopwords(text, tfidf_stopwords)
         #     for text in df["clean_text_mwe"]
-        #]
-        #print("[Stopwords] CLASSIC: TF-IDF stopwords removed")
+        # ]
+        # print("[Stopwords] CLASSIC: TF-IDF stopwords removed")
 
         # D) Italian − TF-IDF (delta)
-        #delta_stopwords = tfidf_stopwords - italian_stopwords
-        #docs = [
+        # delta_stopwords = tfidf_stopwords - italian_stopwords
+        # docs = [
         #     remove_stopwords(text, delta_stopwords)
         #     for text in df["clean_text_mwe"]
         # ]
-        #print("[Stopwords] DELTA:  TF-IDF minus Italian stopwords removed")
+        # print("[Stopwords] DELTA:  TF-IDF minus Italian stopwords removed")
 
-        #E) Italian + TF-IDF (delta)
-        #union_stopwords = set(italian_stopwords) | set(tfidf_stopwords)
-        #docs = [
+        # E) Italian + TF-IDF (delta)
+        # union_stopwords = set(italian_stopwords) | set(tfidf_stopwords)
+        # docs = [
         #    remove_stopwords(text, union_stopwords)
         #    for text in df["clean_text_mwe"]
-       # ]
-        #print("[Stopwords] UNION:  TF-IDF and Italian stopwords removed")
+        # ]
+        # print("[Stopwords] UNION:  TF-IDF and Italian stopwords removed")
 
         os.makedirs("./out", exist_ok=True)
-        pd.to_pickle(
-            {"df": df, "docs": docs},
-            final_cache_path
-        )
+        pd.to_pickle({"df": df, "docs": docs}, final_cache_path)
         print(f"--> [Cache] Saved final preprocessing cache to {final_cache_path}")
-        
+
     # 10. HYPERPARAMETER TUNING (BERTopic)
     print(f"--> [TUNING] Starting BERTopic hyperparameter tuning on {len(docs)} docs")
 
@@ -229,13 +229,14 @@ def run_tuning():
             desc="HDBSCAN grid",
             leave=False,
         ):
-        
             hdb_params = dict(zip(HDBSCAN_GRID.keys(), hdb_vals))
-            
+
             run_id += 1
-            
+
             print("\n========================================")
-            print(f"[RUN {run_id}/{total_runs}] UMAP={umap_params} | HDBSCAN={hdb_params}")
+            print(
+                f"[RUN {run_id}/{total_runs}] UMAP={umap_params} | HDBSCAN={hdb_params}"
+            )
 
             tm = TopicModeler(
                 umap_params=umap_params,
@@ -243,32 +244,21 @@ def run_tuning():
             )
 
             model, topics, probs = tm.run(
-                docs,
-                architecture_name="umap_hdbscan",
-                logger=None
+                docs, architecture_name="umap_hdbscan", logger=None
             )
 
             # ---------------- EVALUATION ----------------
-       
 
-           
-           
-
-            embeddings = tm.embedding_model.encode(
-                docs, show_progress_bar=False
-            )
+            embeddings = tm.embedding_model.encode(docs, show_progress_bar=False)
             multi_label_modeler = MultiLabelModeler(model, docs, topics, probs)
-            results_df = multi_label_modeler.get_top3_topics_per_review(indices=None,
-            top_words=5,
-            alpha=0.85,
-            min_abs_score = 0.20,
-            max_labels=3)
+            results_df = multi_label_modeler.get_top3_topics_per_review(
+                indices=None, top_words=5, alpha=0.85, min_abs_score=0.20, max_labels=3
+            )
             results_df.to_excel("reviews_top3_topics.xlsx", index=False)
             print(f"Salvato {len(results_df)} review con top 3 topic")
 
-
             updated_topics = results_df["assigned_topic_primary"]
-            
+
             df_tmp = df.copy()
             df_tmp["topic"] = topics
 
@@ -276,11 +266,13 @@ def run_tuning():
             outlier_perc = n_outliers / len(df_tmp)
 
             print(f"--> [Evaluation] Outliers: {n_outliers} ({outlier_perc:.2%})")
-           
+
             n_outliersNew = len(results_df[results_df["assigned_topic_primary"] == -1])
             outlier_percNew = n_outliersNew / len(results_df)
 
-            print(f"--> [Evaluation] NewOutliers: {n_outliersNew} ({outlier_percNew:.2%})")
+            print(
+                f"--> [Evaluation] NewOutliers: {n_outliersNew} ({outlier_percNew:.2%})"
+            )
 
             scores = calculate_coherence_metrics(
                 model,
@@ -288,20 +280,18 @@ def run_tuning():
                 embeddings,
                 topics,
                 embedding_model=tm.embedding_model,
-                logger=None
+                logger=None,
             )
 
-      
             scoresWithLesstOutlier = calculate_coherence_metrics(
                 model,
                 docs,
                 embeddings,
                 updated_topics,
                 embedding_model=tm.embedding_model,
-                logger=None
+                logger=None,
             )
 
- 
             silhouette = scores.get("silhouette")
             topic_coherence = scores.get("topic_coherence")
             topic_diversity = scores.get("topic_diversity")
@@ -327,21 +317,22 @@ def run_tuning():
                     topic_diversityNew,
                 )
 
-            results.append({
-                **umap_params,
-                **hdb_params,
-                "outlier_pct": outlier_perc,
-                "silhouette": silhouette,
-                "topic_coherence": topic_coherence,
-                "topic_diversity": topic_diversity,
-                "outlier_pctNew": outlier_percNew,
-                 "silhouetteNew": silhouetteNew,
-                "topic_coherenceNew": topic_coherenceNew,
-                "topic_diversityNew": topic_diversityNew,
-            })
-            
-            n_topics = len(set(topics)) - (1 if -1 in topics else 0)
+            results.append(
+                {
+                    **umap_params,
+                    **hdb_params,
+                    "outlier_pct": outlier_perc,
+                    "silhouette": silhouette,
+                    "topic_coherence": topic_coherence,
+                    "topic_diversity": topic_diversity,
+                    "outlier_pctNew": outlier_percNew,
+                    "silhouetteNew": silhouetteNew,
+                    "topic_coherenceNew": topic_coherenceNew,
+                    "topic_diversityNew": topic_diversityNew,
+                }
+            )
 
+            n_topics = len(set(topics)) - (1 if -1 in topics else 0)
 
             print(
                 f"[CHECK] topics={n_topics} | "
