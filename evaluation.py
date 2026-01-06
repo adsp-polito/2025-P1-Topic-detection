@@ -401,6 +401,16 @@ class HierarchyAnalyzer:
         """
         print("\n--- [Hierarchy Comparison] ---")
 
+        # Normalize Column Names
+        cols_map = {
+            "PARENT_LABEL": "Parent",
+            "LABEL": "Label",
+            "parent_label": "Parent",
+            "label": "Label",
+        }
+
+        taxonomy_df = taxonomy_df.rename(columns=cols_map)
+
         # A. PRINT TAXONOMY STRUCTURE
         if "Parent" in taxonomy_df.columns and "Label" in taxonomy_df.columns:
             print("\n[1] PROVIDED TAXONOMY STRUCTURE (Ground Truth):")
