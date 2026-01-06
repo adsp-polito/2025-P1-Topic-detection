@@ -98,7 +98,7 @@ class TopicModeler:
 
             return HDBSCAN(
                 min_cluster_size=hcfg["min_cluster_size"],
-                min_samples=hcfg.get("min_samples", None),
+                min_samples=hcfg.get("min_samples"),
                 metric="euclidean",
                 cluster_selection_method=hcfg.get("cluster_selection_method", "eom"),
                 prediction_data=True,

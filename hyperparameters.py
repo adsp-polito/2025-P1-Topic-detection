@@ -4,6 +4,7 @@ import wandb
 import nltk   
 
 import os
+from multilabel import MultiLabelModeler
 from cleaner import DataProcessor
 from config import cfg
 from duplicate_remover import DuplicateRemover
@@ -161,9 +162,9 @@ def run_tuning():
         # CHOOSE ONE SETTING (comment / uncomment)
         # -----------------------------------------------------
 
-        # A) NO stopword removal (baseline)
-        #docs = df["clean_text_mwe"].tolist()
-        #print("[Stopwords] CLASSIC: no stopword removal")
+         #A) NO stopword removal (baseline)
+        docs = df["clean_text_mwe"].tolist()
+        print("[Stopwords] CLASSIC: no stopword removal")
 
         #B) Italian stopwords only (classic NLP)
         #docs = [
@@ -188,12 +189,12 @@ def run_tuning():
         #print("[Stopwords] DELTA:  TF-IDF minus Italian stopwords removed")
 
         #E) Italian + TF-IDF (delta)
-        union_stopwords = set(italian_stopwords) | set(tfidf_stopwords)
-        docs = [
-            remove_stopwords(text, union_stopwords)
-            for text in df["clean_text_mwe"]
-        ]
-        print("[Stopwords] UNION:  TF-IDF and Italian stopwords removed")
+        #union_stopwords = set(italian_stopwords) | set(tfidf_stopwords)
+        #docs = [
+        #    remove_stopwords(text, union_stopwords)
+        #    for text in df["clean_text_mwe"]
+       # ]
+        #print("[Stopwords] UNION:  TF-IDF and Italian stopwords removed")
 
         os.makedirs("./out", exist_ok=True)
         pd.to_pickle(
@@ -248,6 +249,26 @@ def run_tuning():
             )
 
             # ---------------- EVALUATION ----------------
+       
+
+           
+           
+
+            embeddings = tm.embedding_model.encode(
+                docs, show_progress_bar=False
+            )
+            multi_label_modeler = MultiLabelModeler(model, docs, topics, probs)
+            results_df = multi_label_modeler.get_top3_topics_per_review(indices=None,
+            top_words=5,
+            alpha=0.85,
+            min_abs_score = 0.20,
+            max_labels=3)
+            results_df.to_excel("reviews_top3_topics.xlsx", index=False)
+            print(f"Salvato {len(results_df)} review con top 3 topic")
+
+
+            updated_topics = results_df["assigned_topic_primary"]
+            
             df_tmp = df.copy()
             df_tmp["topic"] = topics
 
@@ -255,10 +276,11 @@ def run_tuning():
             outlier_perc = n_outliers / len(df_tmp)
 
             print(f"--> [Evaluation] Outliers: {n_outliers} ({outlier_perc:.2%})")
+           
+            n_outliersNew = len(results_df[results_df["assigned_topic_primary"] == -1])
+            outlier_percNew = n_outliersNew / len(results_df)
 
-            embeddings = tm.embedding_model.encode(
-                docs, show_progress_bar=False
-            )
+            print(f"--> [Evaluation] NewOutliers: {n_outliersNew} ({outlier_percNew:.2%})")
 
             scores = calculate_coherence_metrics(
                 model,
@@ -269,11 +291,24 @@ def run_tuning():
                 logger=None
             )
 
-            n_topics = len(set(topics)) - (1 if -1 in topics else 0)
+      
+            scoresWithLesstOutlier = calculate_coherence_metrics(
+                model,
+                docs,
+                embeddings,
+                updated_topics,
+                embedding_model=tm.embedding_model,
+                logger=None
+            )
 
+ 
             silhouette = scores.get("silhouette")
             topic_coherence = scores.get("topic_coherence")
             topic_diversity = scores.get("topic_diversity")
+
+            silhouetteNew = scoresWithLesstOutlier.get("silhouette")
+            topic_coherenceNew = scoresWithLesstOutlier.get("topic_coherence")
+            topic_diversityNew = scoresWithLesstOutlier.get("topic_diversity")
 
             if cfg.get("project.wandb_logging"):
                 wandb_table.add_data(
@@ -282,26 +317,36 @@ def run_tuning():
                     umap_params["min_dist"],
                     hdb_params["min_cluster_size"],
                     hdb_params["min_samples"],
-                    n_topics,
                     outlier_perc,
                     silhouette,
                     topic_coherence,
                     topic_diversity,
+                    outlier_percNew,
+                    silhouetteNew,
+                    topic_coherenceNew,
+                    topic_diversityNew,
                 )
 
             results.append({
                 **umap_params,
                 **hdb_params,
-                "n_topics": n_topics,
                 "outlier_pct": outlier_perc,
                 "silhouette": silhouette,
                 "topic_coherence": topic_coherence,
-                "topic_diversity": topic_diversity
+                "topic_diversity": topic_diversity,
+                "outlier_pctNew": outlier_percNew,
+                 "silhouetteNew": silhouetteNew,
+                "topic_coherenceNew": topic_coherenceNew,
+                "topic_diversityNew": topic_diversityNew,
             })
+            
+            n_topics = len(set(topics)) - (1 if -1 in topics else 0)
+
 
             print(
-                f"[DONE] topics={n_topics} | "
+                f"[CHECK] topics={n_topics} | "
                 f"outliers={outlier_perc:.2%} | "
+                f"outliersNew={outlier_percNew:.2%} | "
             )
 
             if run_id % 5 == 0:
