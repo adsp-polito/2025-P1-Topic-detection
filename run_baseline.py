@@ -157,10 +157,16 @@ def run_baselines():
 
 
     # 8. LOGGING & SAVING
-    out_dir = "./out"
-    out_path = f"{out_dir}/baseline_comparison.xlsx"
-    df_results["results_df"].to_excel(out_path, index=False)
-    print(f"--> [Done] Baseline results saved to: {out_path}")
+    out_dir = "./out/baseline"
+    out_path = f"{out_dir}/baseline_comparison_topics.xlsx"
+    df_results["topics_df"].to_excel(out_path, index=False)
+
+    out_path_lda = f"{out_dir}/baseline_review_lda.xlsx"
+    df_results["nmf_docs_topics_df"].to_excel(out_path_lda, index=False)
+
+    out_path_nmf = f"{out_dir}/baseline_review_nmf.xlsx"
+    df_results["lda_docs_topics_df"].to_excel(out_path_nmf, index=False)
+    print(f"--> [Done] Baseline results saved to: {out_path}, {out_path_lda} and {out_path_nmf}")
 
     if logger:
         # A. Log the Excel file as an Artifact

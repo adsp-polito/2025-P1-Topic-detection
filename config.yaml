@@ -177,8 +177,8 @@ topic_modeling:
     - ["investimenti", "grafici", "bitcoin", "crypto"]
 
 baselines:
-  n_topics: 10
-  n_top_words: 15
+  n_topics: 15
+  n_top_words: 10
   random_state: 42
 
 reductionNumberTopic: false
