@@ -1,15 +1,16 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import silhouette_score, silhouette_samples
+from sklearn.metrics import silhouette_samples, silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 
 from config import cfg
-from logger import WandBLogger
 
 
-def calculate_coherence_metrics(topic_model, docs, embeddings, topics, embedding_model, logger=None):
+def calculate_coherence_metrics(
+    topic_model, docs, embeddings, topics, embedding_model, logger=None
+):
     """
-    Calculates: 
+    Calculates:
     - Silhouette Score --> to measure cluster separation.
     - Topic Coherence (embedding-based)
     - Topic Diversity
@@ -42,7 +43,7 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics, embedding
 
     for t_id in topic_ids:
         words = [w for w, _ in topic_model.get_topic(t_id)[:10]]
-        
+
         if len(words) < 2:
             continue
 
@@ -57,7 +58,6 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics, embedding
     # Topic Diversity
     all_words = []
     for t_id in topic_ids:
-        
         all_words.extend([w for w, _ in topic_model.get_topic(t_id)[:10]])
 
     unique_words = set(all_words)
@@ -70,11 +70,13 @@ def calculate_coherence_metrics(topic_model, docs, embeddings, topics, embedding
         if logger is None:
             print("    Warning: WandBLogger must be passed from main()")
         else:
-            logger.log_metrics({
+            logger.log_metrics(
+                {
                     "silhouette_score": silhouette,
                     "topic_coherence": topic_coherence,
                     "topic_diversity": topic_diversity,
-                    })
+                }
+            )
 
     return {
         "silhouette": silhouette,
@@ -117,7 +119,6 @@ class TaxonomyMapper:
         topic_info = topic_info.reset_index(drop=True)
 
         for idx, t_id in enumerate(topic_info["Topic"]):
-
             words = [word for word, _ in topic_model.get_topic(t_id)[:10]]
             discovered_texts.append(" ".join(words))
             topic_ids.append(t_id)
@@ -126,13 +127,11 @@ class TaxonomyMapper:
                 if idx < len(topic_model.custom_labels_):
                     label = topic_model.custom_labels_[idx]
                 else:
-                    label = topic_info.loc[
-                        topic_info["Topic"] == t_id, "Name"
-                    ].values[0]
+                    label = topic_info.loc[topic_info["Topic"] == t_id, "Name"].values[
+                        0
+                    ]
             else:
-                label = topic_info.loc[
-                    topic_info["Topic"] == t_id, "Name"
-                ].values[0]
+                label = topic_info.loc[topic_info["Topic"] == t_id, "Name"].values[0]
 
             custom_labels.append(label)
 
@@ -163,7 +162,7 @@ class TaxonomyMapper:
             results.append(
                 {
                     "Topic_ID": t_id,
-                     "LLM_Label": custom_labels[idx],
+                    "LLM_Label": custom_labels[idx],
                     "Top_Words": discovered_texts[idx],
                     "Best_Match_Label": best_label,
                     "Similarity_Score": round(best_score, 4),
@@ -188,13 +187,10 @@ class ExactMatcher:
         self.n_rows = len(df)
 
     def compute_exact_match_mono(self):
-
         count = 0
 
         mask = self.df.apply(
-            lambda row: included_or_equal(
-                row["taxonomy_label"], row["labels_list"]
-            ),
+            lambda row: included_or_equal(row["taxonomy_label"], row["labels_list"]),
             axis=1,
         )
         count = mask.sum()
@@ -203,12 +199,10 @@ class ExactMatcher:
 
         return match
 
-        
     def compute_precision(self, mode="mono"):
-
-        if mode=="mono":
+        if mode == "mono":
             pred_column = "taxonomy_label"
-        elif mode=="multi":
+        elif mode == "multi":
             pred_column = "taxonomy_labels_multi"
         else:
             print("Please provide a correct modality: mono/multi. Cuntinuing with mono")
@@ -224,23 +218,24 @@ class ExactMatcher:
             predicted += len(y_pred)
 
         if predicted:
-            precision = round(correct / predicted, 4) 
+            precision = round(correct / predicted, 4)
         else:
             precision = 0.0
         print(f"Precision using {mode} mode for topics: ", precision)
 
         return precision
-    
 
     def compute_precision_silhouette_translation(self, embeddings, topics, mode="mono"):
-       # Convert topics to numpy array for boolean indexing
+        # Convert topics to numpy array for boolean indexing
         topics = np.array(topics)
 
         # Filter out noise (-1)
         outlierMask = topics != -1
 
         if np.sum(outlierMask) < 2:
-            print("    [Warning] Not enough clustered data points to calculate Silhouette.")
+            print(
+                "    [Warning] Not enough clustered data points to calculate Silhouette."
+            )
             return -1.0
 
         clean_embeddings = embeddings[outlierMask]
@@ -264,9 +259,9 @@ class ExactMatcher:
 
         print(f"Mean Silhouette (NON-IT reviews only): {round(mean_silhouette, 4)}")
 
-        if mode=="mono":
+        if mode == "mono":
             pred_column = "taxonomy_label"
-        elif mode=="multi":
+        elif mode == "multi":
             pred_column = "taxonomy_labels_multi"
         else:
             print("Please provide a correct modality: mono/multi. Cuntinuing with mono")
@@ -285,14 +280,20 @@ class ExactMatcher:
             predicted += len(y_pred)
 
         if predicted:
-            precision = round(correct / predicted, 4) 
+            precision = round(correct / predicted, 4)
         else:
             precision = 0.0
-        print(f"Precision on TRANSLATED reviews only, using {mode} mode for topics: ", precision)
-        print(f"Mean silhouette score on TRANSLATED reviews only, using {mode} mode for topics: ", mean_silhouette)
+        print(
+            f"Precision on TRANSLATED reviews only, using {mode} mode for topics: ",
+            precision,
+        )
+        print(
+            f"Mean silhouette score on TRANSLATED reviews only, using {mode} mode for topics: ",
+            mean_silhouette,
+        )
 
         return precision, mean_silhouette
-    
+
 
 def to_set(x):
     if x is None or (isinstance(x, float) and pd.isna(x)):
@@ -320,9 +321,9 @@ def included_or_equal(a, b):
     # b is a numpy array
     if isinstance(b, np.ndarray):
         b = b.tolist()
-    
+
     # case 1: both a and b dont have labels
-    if a=="No Match (Outlier)" and b==[]:
+    if a == "No Match (Outlier)" and b == []:
         return True
 
     # case 2: b is a list - check for match in list
@@ -334,6 +335,95 @@ def included_or_equal(a, b):
         return a == b or a in b
 
     # fallback
-    return False    
+    return False
 
 
+class HierarchyAnalyzer:
+    """
+    Handles Task 3b: Hierarchical Topic Detection.
+    Generates the hierarchy, saves visualizations, and helps compare
+    discovered hierarchy with the provided Taxonomy Parents.
+    """
+
+    def __init__(self, topic_model, docs):
+        self.topic_model = topic_model
+        self.docs = docs
+        self.hierarchical_topics = None
+
+    def compute_hierarchy(self):
+        """
+        Calculates the hierarchical structure of the topics.
+        """
+        print("--> [Hierarchy] Computing hierarchical clustering...")
+        # Hierarchical clustering based on the cosine distance between topic embeddings
+        self.hierarchical_topics = self.topic_model.hierarchical_topics(self.docs)
+        return self.hierarchical_topics
+
+    def save_artifacts(self, output_dir="./out/hierarchy"):
+        """
+        Saves the interactive plot, the tree text, and the data.
+        """
+        import os
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        if self.hierarchical_topics is None:
+            self.compute_hierarchy()
+
+        # 1. Save Dataframe (The mathematical linkage)
+        data_path = os.path.join(output_dir, "hierarchical_data.xlsx")
+        self.hierarchical_topics.to_excel(data_path, index=False)
+        print(f"    Saved hierarchy data to {data_path}")
+
+        # 2. Save Interactive Visualization (HTML)
+        # This answers: "Does a hierarchical structure emerge?"
+        fig = self.topic_model.visualize_hierarchy(
+            hierarchical_topics=self.hierarchical_topics
+        )
+        plot_path = os.path.join(output_dir, "hierarchy_visualization.html")
+        fig.write_html(plot_path)
+        print(f"    Saved interactive hierarchy plot to {plot_path}")
+
+        # 3. Save Textual Tree (For easy reading/reporting)
+        tree_text = self.topic_model.get_topic_tree(self.hierarchical_topics)
+        tree_path = os.path.join(output_dir, "hierarchy_tree.txt")
+        with open(tree_path, "w", encoding="utf-8") as f:
+            f.write(tree_text)
+        print(f"    Saved textual tree to {tree_path}")
+
+    def compare_with_taxonomy(self, taxonomy_df):
+        """
+        Helps answer: "How can it be compared with the provided parent-child relationships?"
+
+        This prints a side-by-side view of:
+        1. The TAXONOMY'S implied hierarchy (Parent -> Labels).
+        2. The MODEL'S discovered hierarchy (Merged Topics -> Child Topics).
+        """
+        print("\n--- [Hierarchy Comparison] ---")
+
+        # A. PRINT TAXONOMY STRUCTURE
+        if "Parent" in taxonomy_df.columns and "Label" in taxonomy_df.columns:
+            print("\n[1] PROVIDED TAXONOMY STRUCTURE (Ground Truth):")
+            # Group by Parent and list children
+            parents = taxonomy_df.groupby("Parent")["Label"].apply(list)
+            for parent, children in parents.items():
+                print(f"  • {parent.upper()}")
+                for child in children:
+                    print(f"      - {child}")
+        else:
+            print(
+                "    [Warning] Taxonomy does not contain 'Parent'/'Label' columns. Skipping structure print."
+            )
+
+        # B. PRINT MODEL STRUCTURE
+        print("\n[2] DISCOVERED MODEL STRUCTURE (Top Levels):")
+        # We print the top of the tree generated by BERTopic
+        tree = self.topic_model.get_topic_tree(self.hierarchical_topics)
+        print(tree)
+
+        print(
+            "\n--> [Tip] To compare: Open 'hierarchy_visualization.html' and check if the branches"
+        )
+        print(
+            "    match the 'Parent' groups listed above (e.g., does 'Bonifici' group with 'Pagamenti'?)."
+        )

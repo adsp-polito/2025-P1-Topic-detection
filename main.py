@@ -11,18 +11,19 @@ from nltk.corpus import stopwords
 from cleaner import DataProcessor
 from config import cfg
 from duplicate_remover import DuplicateRemover
-from evaluation import TaxonomyMapper, ExactMatcher, calculate_coherence_metrics
+from evaluation import (
+    ExactMatcher,
+    HierarchyAnalyzer,
+    TaxonomyMapper,
+    calculate_coherence_metrics,
+)
 from logger import WandBLogger
+from multilabel import MultiLabelModeler, map_topics_to_taxonomy_list
 from mwe import MWEExtractor
 from sentiment_analyzer import SentimentEnsemble
 from topic_modeler import TopicModeler
 from translation import TranslatorModule
-from multilabel import MultiLabelModeler, map_topics_to_taxonomy_list
-from utils import (
-    ensure_directories,
-    load_taxonomy,
-    save_reviews_with_topic_probabilities,
-    seed_everything)
+from utils import ensure_directories, load_taxonomy, seed_everything
 
 
 def main():
@@ -64,7 +65,6 @@ def main():
     data_path = cfg.get("paths.data")
     cache_path = cfg.get("paths.cache")
     use_cache = cfg.get("preprocessing.use_cache")
-    
 
     loader = DataProcessor(data_path)
     df = None
@@ -266,11 +266,9 @@ def main():
 
         # MULTILABELING
         multi_label_modeler = MultiLabelModeler(model, docs, topics, probs)
-        results_df = multi_label_modeler.get_top3_topics_per_review(indices=None,
-            top_words=5,
-            alpha=0.85,
-            min_abs_score = 0.20,
-            max_labels=3)
+        results_df = multi_label_modeler.get_top3_topics_per_review(
+            indices=None, top_words=5, alpha=0.85, min_abs_score=0.20, max_labels=3
+        )
         results_df.to_excel("reviews_top3_topics.xlsx", index=False)
         print(f"Salvato {len(results_df)} review con top 3 topic")
 
@@ -376,7 +374,7 @@ def main():
 
             # Add the label column to the main dataframe
             df["taxonomy_label"] = df["updated_topic"].map(topic_to_label)
-            #df["taxonomy_label"] = df["taxonomy_label"].fillna(["No Match (Outlier)"])
+            # df["taxonomy_label"] = df["taxonomy_label"].fillna(["No Match (Outlier)"])
             df["taxonomy_label"] = df["taxonomy_label"].apply(
                 lambda x: [] if pd.isna(x) else x
             )
@@ -425,8 +423,16 @@ def main():
             match = matcher.compute_exact_match_mono()
             precision_mono = matcher.compute_precision(mode="mono")
             precision_multi = matcher.compute_precision(mode="multi")
-            predcision_silhouette_translations_mono = matcher.compute_precision_silhouette_translation(embeddings, topics, mode="mono")
-            predcision_silhouette_translations_multi = matcher.compute_precision_silhouette_translation(embeddings, topics, mode="multi")
+            predcision_silhouette_translations_mono = (
+                matcher.compute_precision_silhouette_translation(
+                    embeddings, topics, mode="mono"
+                )
+            )
+            predcision_silhouette_translations_multi = (
+                matcher.compute_precision_silhouette_translation(
+                    embeddings, topics, mode="multi"
+                )
+            )
 
             if main_logger:
                 main_logger.log_artifact(
@@ -436,6 +442,21 @@ def main():
                 )
         else:
             print("--> [Warning] No taxonomy loaded. Skipping mapping.")
+
+        # 11. HIERARCHICAL TOPIC DETECTION (Task 3b)
+        print("\n--> [Task 3b] Running Hierarchical Topic Detection...")
+
+        # Initialize the analyzer
+        hierarchy_analyzer = HierarchyAnalyzer(model, docs)
+
+        # Compute and Save Artifacts (Tree, Plot, Data)
+        hierarchy_analyzer.compute_hierarchy()
+        hierarchy_analyzer.save_artifacts("./out/hierarchy")
+
+        # Compare with the provided Taxonomy (if it exists)
+        # We check if taxonomy_df was loaded earlier
+        if "taxonomy_df" in locals() and not taxonomy_df.empty:
+            hierarchy_analyzer.compare_with_taxonomy(taxonomy_df)
 
     if cfg.get("project.wandb_logging"):
         print("--> [WandB] Run finished.")
