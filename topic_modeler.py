@@ -228,7 +228,7 @@ class TopicModeler:
             language=self.config.get("language", "multilingual"),
             calculate_probabilities=architecture_name == "umap_hdbscan",
             verbose=True,
-            nr_topics=15,
+            # nr_topics=15,
         )
 
         print("--> [BERTopic] Fitting model...")

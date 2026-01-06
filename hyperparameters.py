@@ -247,6 +247,8 @@ def run_tuning():
                 docs, architecture_name="umap_hdbscan", logger=None
             )
 
+            n_topics = len(set(topics)) - (1 if -1 in topics else 0)
+
             # ---------------- EVALUATION ----------------
 
             embeddings = tm.embedding_model.encode(docs, show_progress_bar=False)
@@ -307,6 +309,7 @@ def run_tuning():
                     umap_params["min_dist"],
                     hdb_params["min_cluster_size"],
                     hdb_params["min_samples"],
+                    n_topics,
                     outlier_perc,
                     silhouette,
                     topic_coherence,
@@ -321,6 +324,7 @@ def run_tuning():
                 {
                     **umap_params,
                     **hdb_params,
+                    "n_topics": n_topics,
                     "outlier_pct": outlier_perc,
                     "silhouette": silhouette,
                     "topic_coherence": topic_coherence,
@@ -331,8 +335,6 @@ def run_tuning():
                     "topic_diversityNew": topic_diversityNew,
                 }
             )
-
-            n_topics = len(set(topics)) - (1 if -1 in topics else 0)
 
             print(
                 f"[CHECK] topics={n_topics} | "
