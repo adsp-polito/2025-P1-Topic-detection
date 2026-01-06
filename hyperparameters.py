@@ -64,6 +64,10 @@ def run_tuning():
                 "silhouette",
                 "topic_coherence",
                 "topic_diversity",
+                "outlier_pctNew",
+                "silhouetteNew",
+                "topic_coherenceNew",
+                "topic_diversityNew",
             ]
         )
 
