@@ -425,9 +425,8 @@ def main():
             match = matcher.compute_exact_match_mono()
             precision_mono = matcher.compute_precision(mode="mono")
             precision_multi = matcher.compute_precision(mode="multi")
-            predcision_translations_mono = matcher.compute_precision_translation(mode="mono")
-            predcision_translations_multi = matcher.compute_precision_translation(mode="multi")
-
+            predcision_silhouette_translations_mono = matcher.compute_precision_silhouette_translation(embeddings, topics, mode="mono")
+            predcision_silhouette_translations_multi = matcher.compute_precision_silhouette_translation(embeddings, topics, mode="multi")
 
             if main_logger:
                 main_logger.log_artifact(

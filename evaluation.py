@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.metrics.pairwise import cosine_similarity
 
 from config import cfg
@@ -232,7 +232,37 @@ class ExactMatcher:
         return precision
     
 
-    def compute_precision_translation(self, mode="mono"):
+    def compute_precision_silhouette_translation(self, embeddings, topics, mode="mono"):
+       # Convert topics to numpy array for boolean indexing
+        topics = np.array(topics)
+
+        # Filter out noise (-1)
+        outlierMask = topics != -1
+
+        if np.sum(outlierMask) < 2:
+            print("    [Warning] Not enough clustered data points to calculate Silhouette.")
+            return -1.0
+
+        clean_embeddings = embeddings[outlierMask]
+        clean_topics = topics[outlierMask]
+
+        silhouette_vals = silhouette_samples(clean_embeddings, clean_topics)
+
+        silhouette_full = np.full(len(topics), np.nan)
+        silhouette_full[outlierMask] = silhouette_vals
+
+        lang_mask = self.df["detected_lang"] != "it"
+        silhouette_non_it = silhouette_full[lang_mask.values]
+
+        silhouette_non_it = silhouette_non_it[~np.isnan(silhouette_non_it)]
+
+        if len(silhouette_non_it) == 0:
+            print("    [Warning] No non-Italian samples with valid silhouette.")
+            mean_silhouette = np.nan
+        else:
+            mean_silhouette = float(np.mean(silhouette_non_it))
+
+        print(f"Mean Silhouette (NON-IT reviews only): {round(mean_silhouette, 4)}")
 
         if mode=="mono":
             pred_column = "taxonomy_label"
@@ -259,8 +289,9 @@ class ExactMatcher:
         else:
             precision = 0.0
         print(f"Precision on TRANSLATED reviews only, using {mode} mode for topics: ", precision)
+        print(f"Mean silhouette score on TRANSLATED reviews only, using {mode} mode for topics: ", mean_silhouette)
 
-        return precision
+        return precision, mean_silhouette
     
 
 def to_set(x):
