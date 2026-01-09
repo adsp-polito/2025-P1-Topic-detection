@@ -182,5 +182,5 @@ baselines:
   n_top_words: 10
   random_state: 42
 
-reductionNumberTopic: false
+reductionNumberTopic: true
 llmRepresentation: false

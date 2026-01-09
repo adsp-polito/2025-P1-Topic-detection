@@ -1,0 +1,25 @@
+.
+├─carta_dopo_password_accedere_assistenza
+│    ├─bitcoin_vendere_portafoglio_connessione_senza
+│    │    ├─■──numero_opzione_cambiato_senza_logicamente ── Topic: 12
+│    │    └─■──bitcoin_vendere_portafoglio_connessione_euro ── Topic: 10
+│    └─carta_password_dopo_accedere_assistenza
+│         ├─carta_password_dopo_accedere_assistenza
+│         │    ├─password_carta_accedere_dopo_riesco
+│         │    │    ├─password_accedere_riesco_accesso_cambiare
+│         │    │    │    ├─■──accesso_biometrico_face_id_valido_riconoscimento ── Topic: 6
+│         │    │    │    └─■──password_accedere_cambiare_riesco_accesso ── Topic: 2
+│         │    │    └─carta_dopo_soldi_assistenza_giorni
+│         │    │         ├─■──video_registrazione_aggiornamento_fa_dati ── Topic: 3
+│         │    │         └─carta_dopo_soldi_assistenza_giorni
+│         │    │              ├─■──accedere_aggiornamento_riesco_funziona_fa ── Topic: 0
+│         │    │              └─■──carta_soldi_assistenza_dopo_stato ── Topic: 1
+│         │    └─operatore_chat_assistenza_parlare_bot
+│         │         ├─operatore_chat_assistenza_parlare_bot
+│         │         │    ├─■──operatore_chat_parlare_bot_servizio_clienti ── Topic: 5
+│         │         │    └─■──assistenza_fa_pessima_servizio_bonifici ── Topic: 4
+│         │         └─■──questionario_dato_do_tolgo_problema ── Topic: 11
+│         └─■──carta_ricaricare_nuova_altra_problemi ── Topic: 9
+└─lenta_notifiche_pubblicità_spam_molto
+     ├─■──lenta_molto_lentezza_troppo_caricamenti ── Topic: 7
+     └─■──notifiche_pubblicità_spam_promozioni_disattivare ── Topic: 8
