@@ -275,7 +275,7 @@ class TopicModeler:
 
             # Merge by number of topics
             numberOfTopics = input(
-                "Look at topic.html, If you want to merge topics insert the number of final topics (+1), 0 otherwise"
+                "Look at topic.html, If you want to merge topics insert the number of final topics (positive integer number, e.g. 10), 0 otherwise"
             )
             if numberOfTopics.isdigit():
                 nr = int(numberOfTopics)

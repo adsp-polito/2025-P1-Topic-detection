@@ -207,6 +207,7 @@ class ExactMatcher:
         else:
             print("Please provide a correct modality: mono/multi. Cuntinuing with mono")
 
+        """
         correct = 0
         predicted = 0
 
@@ -222,8 +223,30 @@ class ExactMatcher:
         else:
             precision = 0.0
         print(f"Precision using {mode} mode for topics: ", precision)
+        """
 
-        return precision
+        precisions_list = []
+
+        for _, row in self.df.iterrows():
+            
+            y_pred = to_set(row[pred_column])
+            y_true = to_set(row["labels_list"])
+
+            if len(y_pred) == 0:
+                y_pred = {"outlier"}
+            if len(y_true) == 0:
+                y_true = {"outlier"}
+
+            correct = len(y_pred & y_true)
+            predicted = len(y_pred)
+            precision = correct/predicted
+            precisions_list.append(precision)
+
+        all_precision = sum(precisions_list)/self.n_rows
+
+        print(f"Precision for {mode} mode for topics: {all_precision}")
+
+        return all_precision
 
     def compute_precision_silhouette_translation(self, embeddings, topics, mode="mono"):
         # Convert topics to numpy array for boolean indexing
@@ -266,33 +289,36 @@ class ExactMatcher:
         else:
             print("Please provide a correct modality: mono/multi. Cuntinuing with mono")
 
-        correct = 0
-        predicted = 0
-
         mask = self.df["detected_lang"] != "it"
         df_translated = self.df[mask]
 
+        precisions_list = []
         for _, row in df_translated.iterrows():
             y_pred = to_set(row[pred_column])
             y_true = to_set(row["labels_list"])
 
-            correct += len(y_pred & y_true)
-            predicted += len(y_pred)
+            if len(y_pred) == 0:
+                y_pred = {"outlier"}
+            if len(y_true) == 0:
+                y_true = {"outlier"}
 
-        if predicted:
-            precision = round(correct / predicted, 4)
-        else:
-            precision = 0.0
+            correct = len(y_pred & y_true)
+            predicted = len(y_pred)
+            precision = correct/predicted
+            precisions_list.append(precision)
+        
+        all_precision = sum(precisions_list)/len(df_translated)
+
         print(
             f"Precision on TRANSLATED reviews only, using {mode} mode for topics: ",
-            precision,
+            all_precision,
         )
         print(
             f"Mean silhouette score on TRANSLATED reviews only, using {mode} mode for topics: ",
             mean_silhouette,
         )
 
-        return precision, mean_silhouette
+        return all_precision, mean_silhouette
 
 
 def to_set(x):
