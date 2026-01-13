@@ -49,7 +49,12 @@ def load_taxonomy(path: str) -> pd.DataFrame:
         # Standardize columns
         # We rename the first two columns to ensure consistent access
         df_tax.rename(
-            columns={df_tax.columns[0]: "Label", df_tax.columns[2]: "Description", df_tax.columns[3]: "Old_Label"},
+            columns={
+                df_tax.columns[0]: "Label",
+                df_tax.columns[1]: "Parent",
+                df_tax.columns[2]: "Description",
+                df_tax.columns[3]: "Old_Label",
+            },
             inplace=True,
         )
 
@@ -63,7 +68,7 @@ def load_taxonomy(path: str) -> pd.DataFrame:
         )
 
         print(f"--> [Taxonomy] Loaded {len(df_tax)} labels from {path}")
-        return df_tax[["Label", "Description", "Embedding_Text", "Old_Label"]]
+        return df_tax[["Label", "Parent", "Description", "Embedding_Text", "Old_Label"]]
     except Exception as e:
         print(f"--> [Error] Could not load taxonomy: {e}")
         return pd.DataFrame()
@@ -81,13 +86,7 @@ def ensure_directories(paths: list):
                 print(f"--> [System] Created directory: {directory}")
 
 
-def save_reviews_with_topic_probabilities(
-    docs,
-    topics,
-    probs,
-    output_path,
-    top_k=None
-):
+def save_reviews_with_topic_probabilities(docs, topics, probs, output_path, top_k=None):
     """
     Save an Excel file with:
     - review text
@@ -102,16 +101,11 @@ def save_reviews_with_topic_probabilities(
     if probs is not None:
         n_topics = probs.shape[1]
     else:
-      
         unique_topics = set(topics)
         n_topics = len(unique_topics)
-      
 
     # Base dataframe
-    df = pd.DataFrame({
-        "review": docs,
-        "assigned_topic": topics
-    })
+    df = pd.DataFrame({"review": docs, "assigned_topic": topics})
 
     # Add probability columns
     for t in range(n_topics):
@@ -126,15 +120,13 @@ def save_reviews_with_topic_probabilities(
         topk_probs = np.take_along_axis(probs, topk_idx, axis=1)
 
         for k in range(top_k):
-            df[f"top{k+1}_topic"] = topk_idx[:, k]
-            df[f"top{k+1}_prob"] = topk_probs[:, k]
+            df[f"top{k + 1}_topic"] = topk_idx[:, k]
+            df[f"top{k + 1}_prob"] = topk_probs[:, k]
 
     # Save
     df.to_excel(output_path, index=False)
-    if probs is None: 
-      probFlag= "without"
+    if probs is None:
+        probFlag = "without"
     else:
-      probFlag= "with" 
+        probFlag = "with"
     print(f"[Saved] Review-topic {probFlag} probabilities → {output_path}")
-
-
