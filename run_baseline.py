@@ -195,3 +195,7 @@ def run_baselines():
 
         print("--> [WandB] Run finished.")
         logger.finish()
+
+
+if __name__ == "__main__":
+    run_baselines()
