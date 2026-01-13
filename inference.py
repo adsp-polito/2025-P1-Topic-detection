@@ -1,7 +1,7 @@
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 
-from config import cfg
+from src.utils.config import cfg
 
 
 def load_and_predict():

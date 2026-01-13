@@ -1,20 +1,14 @@
-import nltk
-import pandas as pd
 import numpy as np
-from nltk.corpus import stopwords
+import pandas as pd
 from sklearn.decomposition import NMF, LatentDirichletAllocation
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from config import cfg
+from src.utils.config import cfg
+
 
 def calculate_baseline_topic_metrics(
-    model,
-    vectorizer,
-    embedding_model,
-    top_k=10,
-    logger=None,
-    model_name="baseline"
+    model, vectorizer, embedding_model, top_k=10, logger=None, model_name="baseline"
 ):
     """
     Computes:
@@ -28,7 +22,7 @@ def calculate_baseline_topic_metrics(
     feature_names = vectorizer.get_feature_names_out()
     topic_words = []
 
-    # Extract top-k words per topic 
+    # Extract top-k words per topic
     for topic in model.components_:
         top_indices = topic.argsort()[: -top_k - 1 : -1]
         words = [feature_names[i] for i in top_indices]
@@ -87,7 +81,6 @@ class BaselineModeler:
         extras = cfg.get("topic_modeling.extra_stopwords", [])
         self.stop_words.extend(extras)
         """
-        
 
     def run(self, docs: list) -> pd.DataFrame:
         """
@@ -104,8 +97,9 @@ class BaselineModeler:
         # min_df=2: ignore words appearing in <2 docs
         print("    [LDA] Vectorizing...")
         tf_vectorizer = CountVectorizer(
-            max_df=0.95, min_df=2
-            #stop_words=self.stop_words
+            max_df=0.95,
+            min_df=2,
+            # stop_words=self.stop_words
         )
         tf = tf_vectorizer.fit_transform(docs)
 
@@ -121,8 +115,9 @@ class BaselineModeler:
         # NMF works best with normalized data (TF-IDF)
         print("    [NMF] Vectorizing...")
         tfidf_vectorizer = TfidfVectorizer(
-            max_df=0.95, min_df=2
-            #stop_words=self.stop_words
+            max_df=0.95,
+            min_df=2,
+            # stop_words=self.stop_words
         )
         tfidf = tfidf_vectorizer.fit_transform(docs)
 
@@ -138,28 +133,22 @@ class BaselineModeler:
         df_res = pd.DataFrame(results)
         print("--> [Baselines] Finished.")
 
-        # Assign topics to documents 
+        # Assign topics to documents
         print("    [LDA] Assigning topics to documents...")
-        lda_docs_df = self.assign_topics_to_docs(
-            lda, tf_vectorizer, docs, "LDA"
-        )
+        lda_docs_df = self.assign_topics_to_docs(lda, tf_vectorizer, docs, "LDA")
 
         print("    [NMF] Assigning topics to documents...")
-        nmf_docs_df = self.assign_topics_to_docs(
-            nmf, tfidf_vectorizer, docs, "NMF"
-        )
-
+        nmf_docs_df = self.assign_topics_to_docs(nmf, tfidf_vectorizer, docs, "NMF")
 
         return {
-            "topics_df": df_res,              
-            "lda_docs_topics_df": lda_docs_df, 
+            "topics_df": df_res,
+            "lda_docs_topics_df": lda_docs_df,
             "lda_model": lda,
             "lda_vectorizer": tf_vectorizer,
-            "nmf_docs_topics_df": nmf_docs_df, 
+            "nmf_docs_topics_df": nmf_docs_df,
             "nmf_model": nmf,
             "nmf_vectorizer": tfidf_vectorizer,
         }
-
 
     def _extract_topics(self, model, vectorizer, model_name, results_list):
         feature_names = vectorizer.get_feature_names_out()
@@ -176,7 +165,7 @@ class BaselineModeler:
                     "Top_Words": ", ".join(top_words),
                 }
             )
-    
+
     def assign_topics_to_docs(self, model, vectorizer, docs, model_name):
         """
         Assigns a primary topic to each document.
@@ -192,13 +181,14 @@ class BaselineModeler:
             topic_id = int(np.argmax(topic_scores))
             score = float(topic_scores[topic_id])
 
-            rows.append({
-                "review_idx": i,
-                "document": docs[i],
-                "model": model_name,
-                "assigned_topic": topic_id,
-                "topic_score": score,
-            })
+            rows.append(
+                {
+                    "review_idx": i,
+                    "document": docs[i],
+                    "model": model_name,
+                    "assigned_topic": topic_id,
+                    "topic_score": score,
+                }
+            )
 
         return pd.DataFrame(rows)
-

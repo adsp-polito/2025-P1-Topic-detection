@@ -3,7 +3,7 @@ import torch
 from tqdm import tqdm
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 
-from config import cfg
+from src.utils.config import cfg
 
 
 class TranslatorModule:

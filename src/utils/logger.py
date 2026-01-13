@@ -2,7 +2,7 @@ import os
 
 import wandb
 
-from config import cfg
+from src.utils.config import cfg
 
 
 class WandBLogger:

@@ -2,7 +2,7 @@ import pandas as pd
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
-from config import cfg
+from src.utils.config import cfg
 
 
 class SentimentEnsemble:
@@ -147,4 +147,5 @@ class SentimentEnsemble:
         df.loc[mask, "sentiment"] = target_df["new_sentiment"]
 
         print("--> [Sentiment] Re-classification complete.")
+        return df
         return df

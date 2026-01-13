@@ -15,7 +15,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from umap import UMAP
 
-from config import cfg
+from src.utils.config import cfg
 
 
 class TopicModeler:
@@ -218,12 +218,11 @@ class TopicModeler:
             for i, seed in enumerate(seed_topic_list[:3]):
                 print(f"      Topic {i}: {seed[:5]}...")
 
-               # 6. Initialize BERTopic (ONCE)
+            # 6. Initialize BERTopic (ONCE)
         if cfg.get("reductionNumberTopic"):
-          defined_nr_topics=None
+            defined_nr_topics = None
         else:
-          defined_nr_topics=15
-
+            defined_nr_topics = 15
 
         self.topic_model = BERTopic(
             embedding_model=self.embedding_model,

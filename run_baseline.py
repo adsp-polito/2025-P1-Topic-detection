@@ -1,18 +1,17 @@
 import os
 
 import pandas as pd
-
-from baseline import BaselineModeler, calculate_baseline_topic_metrics
-from cleaner import DataProcessor
-from config import cfg
-from duplicate_remover import DuplicateRemover
-from logger import WandBLogger
-from mwe import MWEExtractor
-from sentiment_analyzer import SentimentEnsemble
-from translation import TranslatorModule
-from utils import ensure_directories, seed_everything
 from sentence_transformers import SentenceTransformer
 
+from src.modeling.baseline import BaselineModeler, calculate_baseline_topic_metrics
+from src.preprocessing.cleaner import DataProcessor
+from src.preprocessing.duplicate_remover import DuplicateRemover
+from src.preprocessing.mwe import MWEExtractor
+from src.preprocessing.sentiment_analyzer import SentimentEnsemble
+from src.preprocessing.translation import TranslatorModule
+from src.utils.config import cfg
+from src.utils.logger import WandBLogger
+from src.utils.utils import ensure_directories, seed_everything
 
 
 def plot_top_words(model_name, results_df):
@@ -142,19 +141,18 @@ def run_baselines():
         embedding_model=embedding_model,
         top_k=10,
         logger=logger,
-        model_name="LDA"
+        model_name="LDA",
     )
 
-    # NMF metrics 
+    # NMF metrics
     nmf_metrics = calculate_baseline_topic_metrics(
         model=df_results["nmf_model"],
         vectorizer=df_results["nmf_vectorizer"],
         embedding_model=embedding_model,
         top_k=10,
         logger=logger,
-        model_name="NMF"
+        model_name="NMF",
     )
-
 
     # 8. LOGGING & SAVING
     out_dir = "./out/baseline"
@@ -166,7 +164,9 @@ def run_baselines():
 
     out_path_nmf = f"{out_dir}/baseline_review_nmf.xlsx"
     df_results["lda_docs_topics_df"].to_excel(out_path_nmf, index=False)
-    print(f"--> [Done] Baseline results saved to: {out_path}, {out_path_lda} and {out_path_nmf}")
+    print(
+        f"--> [Done] Baseline results saved to: {out_path}, {out_path_lda} and {out_path_nmf}"
+    )
 
     if logger:
         # A. Log the Excel file as an Artifact
@@ -198,4 +198,6 @@ def run_baselines():
 
 
 if __name__ == "__main__":
+    run_baselines()
+    run_baselines()
     run_baselines()

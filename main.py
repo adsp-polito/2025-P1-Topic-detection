@@ -8,22 +8,22 @@ import pandas as pd
 import wandb
 from nltk.corpus import stopwords
 
-from cleaner import DataProcessor
-from config import cfg
-from duplicate_remover import DuplicateRemover
-from evaluation import (
+from src.evaluation.evaluation import (
     ExactMatcher,
     HierarchyAnalyzer,
     TaxonomyMapper,
     calculate_coherence_metrics,
 )
-from logger import WandBLogger
-from multilabel import MultiLabelModeler, map_topics_to_taxonomy_list
-from mwe import MWEExtractor
-from sentiment_analyzer import SentimentEnsemble
-from topic_modeler import TopicModeler
-from translation import TranslatorModule
-from utils import ensure_directories, load_taxonomy, seed_everything
+from src.modeling.multilabel import MultiLabelModeler, map_topics_to_taxonomy_list
+from src.modeling.topic_modeler import TopicModeler
+from src.preprocessing.cleaner import DataProcessor
+from src.preprocessing.duplicate_remover import DuplicateRemover
+from src.preprocessing.mwe import MWEExtractor
+from src.preprocessing.sentiment_analyzer import SentimentEnsemble
+from src.preprocessing.translation import TranslatorModule
+from src.utils.config import cfg
+from src.utils.logger import WandBLogger
+from src.utils.utils import ensure_directories, load_taxonomy, seed_everything
 
 
 def main():

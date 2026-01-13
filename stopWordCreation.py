@@ -4,15 +4,15 @@ import nltk
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-from translation import TranslatorModule
+from src.preprocessing.translation import TranslatorModule
 
 
 def main():
     print("=== STOPWORD EXTRACTION USING TF-IDF ===")
 
     # Download required NLTK data
-    nltk.download('wordnet', quiet=True)
-    nltk.download('punkt', quiet=True)
+    nltk.download("wordnet", quiet=True)
+    nltk.download("punkt", quiet=True)
 
     # 1. LOAD DATASET
     data_path = "./data/banking-app-reviews-train.csv"
@@ -28,9 +28,9 @@ def main():
 
     # 3. PREPROCESSING (lowercase + lemmatization)
     print("--> [Step 3/4] Preprocessing text (lowercase + lemmatization)...")
-    
+
     # Use the translated text (final_text column from translator)
-    df['lowerReview'] = df['final_text'].str.lower().str.split()
+    df["lowerReview"] = df["final_text"].str.lower().str.split()
 
     w_tokenizer = nltk.tokenize.WhitespaceTokenizer()
     lemmatizer = nltk.stem.WordNetLemmatizer()
@@ -38,15 +38,15 @@ def main():
     def lemmatize_text(text):
         return [lemmatizer.lemmatize(w) for w in text]
 
-    df['finalReview'] = df['lowerReview'].apply(lemmatize_text)
-    
+    df["finalReview"] = df["lowerReview"].apply(lemmatize_text)
+
     # Create corpus
-    corpus = list(map(' '.join, df["finalReview"]))
+    corpus = list(map(" ".join, df["finalReview"]))
     print(f"    Preprocessed {len(corpus)} documents")
 
     # 4. TF-IDF APPROACH
     print("--> [Step 4/4] Applying TF-IDF to identify stopwords...")
-    
+
     vectorizer = TfidfVectorizer()
     x = vectorizer.fit_transform(corpus)
 
@@ -55,8 +55,7 @@ def main():
     count_lst = x.toarray().sum(axis=0)
 
     vocab_df = pd.DataFrame(
-        list(zip(word_lst, count_lst)),
-        columns=["vocab", "tfidf_value"]
+        list(zip(word_lst, count_lst)), columns=["vocab", "tfidf_value"]
     )
 
     sorted_df = vocab_df.sort_values(by="tfidf_value", ascending=False)
@@ -64,7 +63,7 @@ def main():
     # 5. SAVE TOP 200 WORDS
     output_file = "./data/tfidf_stopwords.txt"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    
+
     textfile = open(output_file, "w", encoding="utf-8")
     for element in sorted_df.vocab.head(200):
         textfile.write(element + "\n")

@@ -7,17 +7,17 @@ import wandb
 from nltk.corpus import stopwords
 from tqdm import tqdm
 
-from cleaner import DataProcessor
-from config import cfg
-from duplicate_remover import DuplicateRemover
-from evaluation import calculate_coherence_metrics
-from logger import WandBLogger
-from multilabel import MultiLabelModeler
-from mwe import MWEExtractor
-from sentiment_analyzer import SentimentEnsemble
-from topic_modeler import TopicModeler
-from translation import TranslatorModule
-from utils import ensure_directories, seed_everything
+from src.evaluation.evaluation import calculate_coherence_metrics
+from src.modeling.multilabel import MultiLabelModeler
+from src.modeling.topic_modeler import TopicModeler
+from src.preprocessing.cleaner import DataProcessor
+from src.preprocessing.duplicate_remover import DuplicateRemover
+from src.preprocessing.mwe import MWEExtractor
+from src.preprocessing.sentiment_analyzer import SentimentEnsemble
+from src.preprocessing.translation import TranslatorModule
+from src.utils.config import cfg
+from src.utils.logger import WandBLogger
+from src.utils.utils import ensure_directories, seed_everything
 
 UMAP_GRID = {
     "n_neighbors": [35, 50, 60],

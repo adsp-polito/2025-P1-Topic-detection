@@ -3,7 +3,7 @@ import pandas as pd
 from sklearn.metrics import silhouette_samples, silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 
-from config import cfg
+from src.utils.config import cfg
 
 
 def calculate_coherence_metrics(
@@ -228,7 +228,6 @@ class ExactMatcher:
         precisions_list = []
 
         for _, row in self.df.iterrows():
-            
             y_pred = to_set(row[pred_column])
             y_true = to_set(row["labels_list"])
 
@@ -239,10 +238,10 @@ class ExactMatcher:
 
             correct = len(y_pred & y_true)
             predicted = len(y_pred)
-            precision = correct/predicted
+            precision = correct / predicted
             precisions_list.append(precision)
 
-        all_precision = sum(precisions_list)/self.n_rows
+        all_precision = sum(precisions_list) / self.n_rows
 
         print(f"Precision for {mode} mode for topics: {all_precision}")
 
@@ -304,10 +303,10 @@ class ExactMatcher:
 
             correct = len(y_pred & y_true)
             predicted = len(y_pred)
-            precision = correct/predicted
+            precision = correct / predicted
             precisions_list.append(precision)
-        
-        all_precision = sum(precisions_list)/len(df_translated)
+
+        all_precision = sum(precisions_list) / len(df_translated)
 
         print(
             f"Precision on TRANSLATED reviews only, using {mode} mode for topics: ",
