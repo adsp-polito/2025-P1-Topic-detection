@@ -426,28 +426,18 @@ class HierarchyAnalyzer:
         """
         print("\n--- [Hierarchy Comparison] ---")
 
-        # Normalize Column Names
-        cols_map = {
-            "PARENT_LABEL": "Parent",
-            "LABEL": "Label",
-            "parent_label": "Parent",
-            "label": "Label",
-        }
-
-        taxonomy_df = taxonomy_df.rename(columns=cols_map)
-
         # A. PRINT TAXONOMY STRUCTURE
-        if "Parent" in taxonomy_df.columns and "Label" in taxonomy_df.columns:
+        if "PARENT_LABEL" in taxonomy_df.columns and "LABEL" in taxonomy_df.columns:
             print("\n[1] PROVIDED TAXONOMY STRUCTURE (Ground Truth):")
             # Group by Parent and list children
-            parents = taxonomy_df.groupby("Parent")["Label"].apply(list)
+            parents = taxonomy_df.groupby("PARENT_LABEL")["LABEL"].apply(list)
             for parent, children in parents.items():
                 print(f"  • {parent.upper()}")
                 for child in children:
                     print(f"      - {child}")
         else:
             print(
-                "    [Warning] Taxonomy does not contain 'Parent'/'Label' columns. Skipping structure print."
+                "    [Warning] Taxonomy does not contain 'PARENT_LABEL'/'LABEL' columns. Skipping structure print."
             )
 
         # B. PRINT MODEL STRUCTURE
@@ -460,5 +450,5 @@ class HierarchyAnalyzer:
             "\n--> [Tip] To compare: Open 'hierarchy_visualization.html' and check if the branches"
         )
         print(
-            "    match the 'Parent' groups listed above (e.g., does 'Bonifici' group with 'Pagamenti'?)."
+            "    match the 'PARENT_LABEL' groups listed above (e.g., does 'Bonifici' group with 'Pagamenti'?)."
         )
