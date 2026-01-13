@@ -58,7 +58,7 @@ def run_baselines():
         print("--> [WandB] Baseline run started.")
 
     # Ensure output directories exist
-    ensure_directories([cfg.get("paths.cache"), "./out/"])
+    ensure_directories([cfg.get("paths.cache"), "./out/baseline"])
 
     # 3. FULL DATA PIPELINE (Copy of main.py logic)
     # We want to ensure we are working on the EXACT same processed data.
@@ -195,9 +195,3 @@ def run_baselines():
 
         print("--> [WandB] Run finished.")
         logger.finish()
-
-
-if __name__ == "__main__":
-    run_baselines()
-    run_baselines()
-    run_baselines()
