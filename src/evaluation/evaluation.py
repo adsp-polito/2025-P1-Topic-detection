@@ -95,76 +95,70 @@ class TaxonomyMapper:
         # We reuse the same embedding model used for BERTopic
         self.embedding_model = embedding_model
 
-    def map_topics_to_taxonomy(self, topic_model, taxonomy_df: pd.DataFrame):
+    def map_topics_to_taxonomy(
+        self, topic_model, taxonomy_df: pd.DataFrame, topic_descriptions
+    ):
         """
-        Returns a DataFrame showing the best match for each discovered topic.
-        Expects taxonomy_df to have columns: ['Label', 'Embedding_Text']
+        Returns a DataFrame showing the best taxonomy match for each discovered topic.
+        topic_descriptions: dict {topic_id: LLM-generated description}
+        taxonomy_df must contain columns: ['Label', 'Embedding_Text']
         """
+
         print("--> [Evaluation] Mapping discovered topics to provided Taxonomy...")
 
         if taxonomy_df.empty:
             print("    [Warning] Taxonomy DataFrame is empty. Skipping.")
             return pd.DataFrame()
 
-        # 1. Get Discovered Topic Representations
+        # 1. Get valid topic IDs (exclude noise)
         topic_info = topic_model.get_topic_info()
-        # Filter out Topic -1 (Noise)
-        topic_info = topic_info[topic_info["Topic"] != -1]
+        topic_info = topic_info[topic_info["Topic"] != -1].reset_index(drop=True)
 
-        discovered_texts = []
         topic_ids = []
-        custom_labels = []
+        discovered_texts = []
+        top_words_list = []
 
-        # Construct a string representation for each topic (using top 10 words for better context)
-        topic_info = topic_info.reset_index(drop=True)
+        for t_id in topic_info["Topic"]:
+            if t_id not in topic_descriptions:
+                continue  # skip topics without LLM description
 
-        for idx, t_id in enumerate(topic_info["Topic"]):
-            words = [word for word, _ in topic_model.get_topic(t_id)[:10]]
-            discovered_texts.append(" ".join(words))
             topic_ids.append(t_id)
 
-            if hasattr(topic_model, "custom_labels_") and topic_model.custom_labels_:
-                if idx < len(topic_model.custom_labels_):
-                    label = topic_model.custom_labels_[idx]
-                else:
-                    label = topic_info.loc[topic_info["Topic"] == t_id, "Name"].values[
-                        0
-                    ]
-            else:
-                label = topic_info.loc[topic_info["Topic"] == t_id, "Name"].values[0]
+            # 🔑 USE LLM DESCRIPTION AS REPRESENTATION
+            discovered_texts.append(topic_descriptions[t_id])
 
-            custom_labels.append(label)
+            # keep top words only for reporting
+            words = [word for word, _ in topic_model.get_topic(t_id)[:10]]
+            top_words_list.append(" ".join(words))
 
         if not topic_ids:
-            print("    [Warning] No topics found (only noise). Skipping mapping.")
+            print("    [Warning] No topics found. Skipping mapping.")
             return pd.DataFrame()
 
-        # 2. Embed Both Lists, we embed the "Combined" text (Label + Description) from the taxonomy
-        print("    Embedding topics and taxonomy descriptions...")
+        # 2. Embed LLM descriptions and taxonomy texts
+        print("    Embedding topic descriptions and taxonomy entries...")
         dt_embeddings = self.embedding_model.encode(discovered_texts)
         tax_embeddings = self.embedding_model.encode(
             taxonomy_df["Embedding_Text"].tolist()
         )
 
-        # 3. Calculate Cosine Similarity Matrix
+        # 3. Compute similarity
         similarity_matrix = cosine_similarity(dt_embeddings, tax_embeddings)
-
-        # 4. Find Best Matches
-        results = []
         taxonomy_labels = taxonomy_df["Label"].tolist()
 
+        # 4. Best match per topic
+        results = []
+
         for idx, t_id in enumerate(topic_ids):
-            # Find index of highest score in the row
             best_match_idx = similarity_matrix[idx].argmax()
             best_score = similarity_matrix[idx][best_match_idx]
-            best_label = taxonomy_labels[best_match_idx]
 
             results.append(
                 {
                     "Topic_ID": t_id,
-                    "LLM_Label": custom_labels[idx],
-                    "Top_Words": discovered_texts[idx],
-                    "Best_Match_Label": best_label,
+                    "Topic_Description": discovered_texts[idx],  # 🔑 LLM DESCRIPTION
+                    "Top_Words": top_words_list[idx],
+                    "Best_Match_Label": taxonomy_labels[best_match_idx],
                     "Similarity_Score": round(best_score, 4),
                     "Match_Type": "Strong" if best_score > 0.55 else "Weak/New",
                 }
@@ -207,7 +201,6 @@ class ExactMatcher:
         else:
             print("Please provide a correct modality: mono/multi. Cuntinuing with mono")
 
-        """
         correct = 0
         predicted = 0
 
@@ -223,29 +216,8 @@ class ExactMatcher:
         else:
             precision = 0.0
         print(f"Precision using {mode} mode for topics: ", precision)
-        """
 
-        precisions_list = []
-
-        for _, row in self.df.iterrows():
-            y_pred = to_set(row[pred_column])
-            y_true = to_set(row["labels_list"])
-
-            if len(y_pred) == 0:
-                y_pred = {"outlier"}
-            if len(y_true) == 0:
-                y_true = {"outlier"}
-
-            correct = len(y_pred & y_true)
-            predicted = len(y_pred)
-            precision = correct / predicted
-            precisions_list.append(precision)
-
-        all_precision = sum(precisions_list) / self.n_rows
-
-        print(f"Precision for {mode} mode for topics: {all_precision}")
-
-        return all_precision
+        return precision
 
     def compute_precision_silhouette_translation(self, embeddings, topics, mode="mono"):
         # Convert topics to numpy array for boolean indexing
@@ -288,36 +260,33 @@ class ExactMatcher:
         else:
             print("Please provide a correct modality: mono/multi. Cuntinuing with mono")
 
+        correct = 0
+        predicted = 0
+
         mask = self.df["detected_lang"] != "it"
         df_translated = self.df[mask]
 
-        precisions_list = []
         for _, row in df_translated.iterrows():
             y_pred = to_set(row[pred_column])
             y_true = to_set(row["labels_list"])
 
-            if len(y_pred) == 0:
-                y_pred = {"outlier"}
-            if len(y_true) == 0:
-                y_true = {"outlier"}
+            correct += len(y_pred & y_true)
+            predicted += len(y_pred)
 
-            correct = len(y_pred & y_true)
-            predicted = len(y_pred)
-            precision = correct / predicted
-            precisions_list.append(precision)
-
-        all_precision = sum(precisions_list) / len(df_translated)
-
+        if predicted:
+            precision = round(correct / predicted, 4)
+        else:
+            precision = 0.0
         print(
             f"Precision on TRANSLATED reviews only, using {mode} mode for topics: ",
-            all_precision,
+            precision,
         )
         print(
             f"Mean silhouette score on TRANSLATED reviews only, using {mode} mode for topics: ",
             mean_silhouette,
         )
 
-        return all_precision, mean_silhouette
+        return precision, mean_silhouette
 
 
 def to_set(x):

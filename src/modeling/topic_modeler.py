@@ -5,7 +5,6 @@ import torch
 import transformers
 import wandb
 from bertopic import BERTopic
-from bertopic.representation import TextGeneration
 from hdbscan import HDBSCAN
 from nltk.corpus import stopwords
 from sentence_transformers import SentenceTransformer
@@ -122,37 +121,68 @@ class TopicModeler:
 
         raise ValueError(f"Unknown clustering: {name}")
 
-    def clean_label(self, raw_label: str) -> str:
-        label = " ".join(raw_label.split())
+    def clean_label(label: str) -> str:
+        """Pulisce l'output LLM da artefatti comuni"""
+        from html import unescape
 
-        unwanted_prefixes = [
-            r"^(Risposta|Output|Label|Etichetta|Categoria):\s*",
-            r'^["\']',
-        ]
-        for pattern in unwanted_prefixes:
-            label = re.sub(pattern, "", label, flags=re.IGNORECASE)
+        # Decodifica HTML entities
+        label = unescape(label)
 
-        match = re.match(
-            r"(Problemi\s+(?:di|con|per)\s+[\w\s]{1,30}?)(?:\s+[A-Z]|\.|,|\s+La\b|\s+Il\b|\s+D\b|\s+Dopo\b)",
+        # Rimuovi prefisso "Problemi di N_" o "N_" all'inizio
+        label = re.sub(r"^(Problemi di\s+)?\d+_\s*", "", label, flags=re.IGNORECASE)
+
+        # Rimuovi prefissi comuni di risposta
+        label = re.sub(
+            r"^(Risposta:|OUTPUT:|Risultato:|Note:|Suggerimento:)\s*",
+            "",
             label,
-            re.IGNORECASE,
+            flags=re.IGNORECASE,
         )
 
-        if match:
-            label = match.group(1).strip()
-        else:
-            words = label.split()
-            if words[0].lower() == "problemi":
-                label = " ".join(words[:4])
+        # Rimuovi virgolette casuali all'inizio/fine
+        label = label.strip("'\"")
 
-        label = re.sub(r'[.,;:!?\'"]+$', "", label)
+        # Rimuovi codice/markdown
+        label = re.sub(r"```.*?```", "", label, flags=re.DOTALL)
+        label = re.sub(r"`.*?`", "", label)
 
-        label = label[0].upper() + label[1:].lower() if label else label
+        # Rimuovi parentesi con contenuto
+        label = re.sub(r"\(.*?\)", "", label)
 
-        if not label.lower().startswith("problemi"):
-            label = f"Problemi di {label.lower()}"
+        # Rimuovi "risposta" isolata alla fine
+        label = re.sub(r"\s+risposta\.?\s*$", "", label, flags=re.IGNORECASE)
 
-        return label
+        # Rimuovi underscore multipli o trattini lunghi
+        label = re.sub(r"_{2,}", "", label)
+        label = re.sub(r"-{3,}", "", label)
+
+        # Prendi solo il contenuto prima di "Note:", "Suggerimento:", ecc.
+        label = re.split(
+            r"\s+(Note:|Suggerimento:|Risposta corretta)", label, flags=re.IGNORECASE
+        )[0]
+
+        # Prendi solo la prima frase completa
+        sentences = re.split(r"[.!?]\s+", label)
+        if sentences:
+            label = sentences[0]
+
+        # Aggiungi punto finale se manca
+        if label and not label.endswith((".", "!", "?")):
+            label += "."
+
+        # Normalizza spazi
+        label = re.sub(r"\s+", " ", label)
+
+        # Capitalizza prima lettera
+        if label:
+            label = label[0].upper() + label[1:]
+
+        # Tronca se troppo lungo (15 parole)
+        words = label.split()
+        if len(words) > 15:
+            label = " ".join(words[:15]) + "."
+
+        return label.strip()
 
     def run(
         self,
@@ -218,9 +248,9 @@ class TopicModeler:
             for i, seed in enumerate(seed_topic_list[:3]):
                 print(f"      Topic {i}: {seed[:5]}...")
 
-            # 6. Initialize BERTopic (ONCE)
+        # 6. Initialize BERTopic (ONCE)
         if cfg.get("reductionNumberTopic"):
-            defined_nr_topics = None
+            defined_nr_topics = "auto"
         else:
             defined_nr_topics = 15
 
@@ -269,12 +299,12 @@ class TopicModeler:
                 probs = None
 
         if cfg.get("reductionNumberTopic"):
-            fig = self.topic_model.visualize_hierarchy()
+            fig = self.topic_model.visualize_topics()
             fig.write_html("./out/topic.html")
 
             # Merge by number of topics
             numberOfTopics = input(
-                "Look at topic.html, If you want to merge topics insert the number of final topics (positive integer number, e.g. 10), 0 otherwise"
+                "Look at topic.html, If you want to merge topics insert a number (+1), 0 otherwise"
             )
             if numberOfTopics.isdigit():
                 nr = int(numberOfTopics)
@@ -290,6 +320,53 @@ class TopicModeler:
 
             newfig = self.topic_model.visualize_topics()
             newfig.write_html("./out/newTopic.html")
+
+            """
+
+            # Merge by specific topics
+            merge = input(
+                "Look at topic.html. Do you want to merge specific topics? (Y/N): "
+            )
+
+            while merge.upper() == "Y":
+                print(
+                    "Insert topic pairs to merge, one per line.\n"
+                    "Example:\n"
+                    "1 2\n"
+                    "3 4\n"
+                    "Empty line to finish."
+                )
+
+                list_to_merge = []
+
+                while True:
+                    line = input()
+                    if line.strip() == "":
+                        break
+                    try:
+                        a, b = map(int, line.split())
+                        list_to_merge.append([a, b])
+                    except ValueError:
+                        print("Invalid format. Use: <int> <int>")
+
+                if not list_to_merge:
+                    print("No valid topic pairs provided. Skipping merge.")
+                else:
+                    self.topic_model.merge_topics(docs, list_to_merge)
+                    topics = self.topic_model.topics_
+                    if architecture_name == "umap_hdbscan":
+                        _, probs = self.topic_model.transform(docs)
+                    else:
+                        _ = self.topic_model.transform(docs)
+                        probs = None
+
+                    newfig = self.topic_model.visualize_topics()
+                    newfig.write_html("./out/newTopic.html")
+
+                    print(f"Merged topic pairs: {list_to_merge}")
+
+                merge = input("Look at newTopic.html. Merge more topics? (Y/N): ")
+            """
 
         if cfg.get("llmRepresentation"):
             print("    Loading Llama 3.1 8B Instruct...")
@@ -315,66 +392,96 @@ class TopicModeler:
             )
 
             prompt = """
-                Sei un analista di feedback utente esperto. Il tuo compito è sintetizzare recensioni e parole chiave in un'unica categoria standardizzata.
+            Sei un analista di feedback utente.
 
-                INPUT DA ANALIZZARE:
-                REVIEWS: [DOCUMENTS]
-                KEYWORDS: [KEYWORDS]
+            Il tuo compito è produrre UNA SOLA descrizione sintetica del problema principale segnalato dagli utenti.
 
-                REGOLE TASSATIVE:
-                1. Produci UNICAMENTE una label in italiano di massimo 4 parole.
-                2. Inizia sempre con la formula "Problemi di" (o "Problemi con" se più naturale).
-                3. Priorità: Se l'input contiene log tecnici (GPU, pipeline, codice) e recensioni utente, IGNORE i log tecnici e categorizza solo il disagio dell'utente.
-                4. Formattazione: Solo testo, niente punteggiatura finale, niente grassetti, niente virgolette, niente prefissi come "Label:" o "Risposta:".
-                5. Se i documenti contengono più problemi, identifica quello principale o più frequente.
-                6. Non inserire nella tua risposta errori tipo "Spiega", "Sp", "Etichetta" o "Giusto", basati sulla formula.
+            INPUT:
+            RECENSIONI:
+            {documents}
 
-                ESEMPI:
-                Input: "L'app crasha sempre al login. Errore GPU pipeline 0x01" -> Problemi di accesso app
-                Input: "Non riesco a pagare con la ricaricabile" -> Problemi di pagamenti
-                Input: "Lento a caricare le notifiche" -> Problemi di notifiche
+            PAROLE CHIAVE:
+            {keywords}
 
-                OUTPUT:
+            REGOLE OBBLIGATORIE:
+            - Scrivi UNA SOLA FRASE
+            - Massimo 20 parole
+            - Inizia con "Problemi legati a", "Problemi relativi a" oppure "Problemi con"
+            - NON scrivere spiegazioni, esempi, codice, commenti o ragionamenti
+            - NON usare parole come "Risposta", "Nota", "Ragionamento", "Soluzione", "Risultato"
+            - NON andare a capo
+            - Output SOLO la frase finale, nient’altro
             """
 
             generator = pipeline(
                 "text-generation",
                 model=model,
                 tokenizer=tokenizer,
-                max_new_tokens=8,
-                do_sample=True,
-                temperature=0.1,
+                max_new_tokens=30,
+                do_sample=False,
+                temperature=0.0,
                 top_p=0.9,
                 repetition_penalty=1.2,
                 return_full_text=False,
             )
-            topic_labels = {}
-            for topic_id in range(len(self.topic_model.get_topic_info()) - 1):
-                topic_words = [
-                    word for word, _ in self.topic_model.get_topic(topic_id)[:10]
+
+            def clean_description(text: str) -> str:
+                text = text.strip()
+
+                # prendi solo la prima frase
+                text = text.split("\n")[0]
+
+                # rimuovi keyword proibite
+                forbidden = [
+                    "Risposta",
+                    "Ragionamento",
+                    "Nota",
+                    "Soluzione",
+                    "```",
+                    "import",
+                    "def ",
+                    "class ",
+                    "Risposta finale",
                 ]
-                topic_docs = [
-                    doc for doc, topic in zip(docs, topics) if topic == topic_id
-                ][:5]
+                for f in forbidden:
+                    if f in text:
+                        text = text.split(f)[0]
 
-                prompt_filled = prompt.replace("[DOCUMENTS]", "\n".join(topic_docs[:3]))
-                prompt_filled = prompt_filled.replace(
-                    "[KEYWORDS]", ", ".join(topic_words)
-                )
+                # fallback
+                if len(text.split()) < 3:
+                    return "Problemi legati all’utilizzo dell’app"
 
+                return text.strip()
+
+            topic_descriptions = {}
+
+            for topic_id in self.topic_model.get_topic_info()["Topic"]:
+                if topic_id == -1:
+                    continue  # skip outliers
+
+                # top words c-TF-IDF
+                topic_words = [w for w, _ in self.topic_model.get_topic(topic_id)[:10]]
+
+                # documenti del topic
+                topic_docs = [doc for doc, t in zip(docs, topics) if t == topic_id][:5]
+
+                # prompt
+                prompt_filled = prompt.replace(
+                    "{documents}", "\n".join(topic_docs[:2])
+                ).replace("{keywords}", ", ".join(topic_words))
+
+                # chiamata LLM
                 result = generator(prompt_filled)
-                label = result[0]["generated_text"].strip()
-                clean_label_text = self.clean_label(label)
-                print(f"Topic {topic_id}: {label} -> {clean_label_text}")
-                topic_labels[topic_id] = clean_label_text
+                resultCleaned = clean_description(result[0]["generated_text"])
 
-            self.topic_model.set_topic_labels(topic_labels)
+                # pulizia output
+                # description = self.clean_label(result)
 
-            representation_model = TextGeneration(generator, prompt=prompt)
+                topic_descriptions[topic_id] = resultCleaned
 
-            self.topic_model.update_topics(
-                docs, representation_model=representation_model
-            )
+                print(f"TOPIC {topic_id}")
+                print("TOP WORDS:", topic_words)
+                print("DESCRIPTION:", resultCleaned)
 
         fig_hierarchy = self.topic_model.visualize_hierarchy(
             top_n_topics=50, custom_labels=True
@@ -418,7 +525,7 @@ class TopicModeler:
             except Exception as e:
                 print(f"--> [Warning] Could not log plots: {e}")
 
-        return self.topic_model, topics, probs
+        return self.topic_model, topics, probs, topic_descriptions
 
     def save_model(self, path: str):
         """Saves the trained model to disk."""
