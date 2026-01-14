@@ -38,22 +38,17 @@ class MultiLabelModeler:
 
         for i in indices:
             review_scores = self.probs[i]
-
-            # Ordina topic per score decrescente
             sorted_idx = np.argsort(review_scores)[::-1]
             sorted_scores = review_scores[sorted_idx]
 
             max_score = sorted_scores[0]
-
-            # Multi-label selection (include -1 if relevant)
             candidates = [
                 (int(tid), float(score))
                 for tid, score in zip(sorted_idx, sorted_scores)
                 if score >= alpha * max_score
             ][:max_labels]
 
-            
-            # Lista dei topic selezionati (solo topic validi)
+        
             multi_topics = [tid for tid, _ in candidates if tid != -1]
 
             old_topic = int(self.topics[i])
@@ -61,7 +56,7 @@ class MultiLabelModeler:
             if old_topic != -1:
                 assigned_primary = old_topic
             else:
-                # outlier reduction SOLO se il best score supera la soglia assoluta
+              
                 if len(candidates) > 0 and candidates[0][1] >= min_abs_score:
                     assigned_primary = multi_topics[0] if len(multi_topics) > 0 else -1
                 else:
@@ -88,7 +83,7 @@ class MultiLabelModeler:
                 "n_assigned_topics": len(multi_topics),
             }
 
-            # Dettaglio top-k topic
+          
             for rank, (topic_id, score) in enumerate(candidates, start=1):
                 row[f"topic_{rank}"] = topic_id
                 row[f"topic_{rank}_score"] = score
