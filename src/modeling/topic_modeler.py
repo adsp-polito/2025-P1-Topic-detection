@@ -367,6 +367,7 @@ class TopicModeler:
 
                 merge = input("Look at newTopic.html. Merge more topics? (Y/N): ")
             """
+        topic_descriptions = {}
 
         if cfg.get("llmRepresentation"):
             print("    Loading Llama 3.1 8B Instruct...")
