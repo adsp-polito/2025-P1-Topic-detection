@@ -119,13 +119,17 @@ class TaxonomyMapper:
         top_words_list = []
 
         for t_id in topic_info["Topic"]:
-            if t_id not in topic_descriptions:
-                continue  # skip topics without LLM description
+            if t_id in topic_descriptions:
+                desc = topic_descriptions[t_id]
+            else:
+                # Fallback: Create a string from the top 10 words
+                words = [word for word, _ in topic_model.get_topic(t_id)[:10]]
+                desc = " ".join(words)
 
             topic_ids.append(t_id)
 
             # 🔑 USE LLM DESCRIPTION AS REPRESENTATION
-            discovered_texts.append(topic_descriptions[t_id])
+            discovered_texts.append(desc)
 
             # keep top words only for reporting
             words = [word for word, _ in topic_model.get_topic(t_id)[:10]]
