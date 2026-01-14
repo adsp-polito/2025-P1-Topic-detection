@@ -128,7 +128,7 @@ class TaxonomyMapper:
 
             topic_ids.append(t_id)
 
-            # 🔑 USE LLM DESCRIPTION AS REPRESENTATION
+           
             discovered_texts.append(desc)
 
             # keep top words only for reporting
@@ -160,7 +160,7 @@ class TaxonomyMapper:
             results.append(
                 {
                     "Topic_ID": t_id,
-                    "Topic_Description": discovered_texts[idx],  # 🔑 LLM DESCRIPTION
+                    "Topic_Description": discovered_texts[idx], 
                     "Top_Words": top_words_list[idx],
                     "Best_Match_Label": taxonomy_labels[best_match_idx],
                     "Similarity_Score": round(best_score, 4),
