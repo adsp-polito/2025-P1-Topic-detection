@@ -243,7 +243,7 @@ def main():
         # Topic modeling
         tm = TopicModeler()
 
-        model, topics, probs = tm.run(
+        model, topics, probs, topic_descriptions = tm.run(
             docs,
             y=y,
             run_name="bertopic_run",
@@ -350,7 +350,9 @@ def main():
         if not taxonomy_df.empty:
             mapper = TaxonomyMapper(embedding_model=tm.embedding_model)
 
-            mapping_df = mapper.map_topics_to_taxonomy(model, taxonomy_df)
+            mapping_df = mapper.map_topics_to_taxonomy(
+                model, taxonomy_df, topic_descriptions
+            )
             print(mapping_df.head())
 
             out_file_map = cfg.get("paths.output_mapping")
