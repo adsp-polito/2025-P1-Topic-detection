@@ -41,6 +41,7 @@ The goal of this project is to analyze user feedback (reviews) to automatically 
 
 - Python 3.10+
 - NVIDIA GPU (Recommended for LLM labeling and Transformer-based embeddings)
+- **Hugging Face Account**: Access to [Meta Llama 3.1 8B Instruct](https://huggingface.co/meta-llama/Meta-Llama-3.1-8B-Instruct). You need to request access and set your `HF_TOKEN` environment variable.
 
 ### Setup
 
@@ -108,6 +109,13 @@ To generate domain-specific TF-IDF stopwords:
 
 ```bash
 python stopWordCreation.py
+```
+
+**4. Hyperparameter Tuning**
+To run a grid search over UMAP and HDBSCAN parameters (results saved to `out/tuning/` and logged to WandB if enabled):
+
+```bash
+python -m src.utils.hyperparameters
 ```
 
 ### Output
