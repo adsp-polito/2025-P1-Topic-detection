@@ -250,7 +250,7 @@ class TopicModeler:
 
         # 6. Initialize BERTopic (ONCE)
         if cfg.get("reductionNumberTopic"):
-            defined_nr_topics = "auto"
+            defined_nr_topics = None
         else:
             defined_nr_topics = 15
 
