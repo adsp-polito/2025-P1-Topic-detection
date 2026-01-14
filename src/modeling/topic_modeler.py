@@ -121,69 +121,6 @@ class TopicModeler:
 
         raise ValueError(f"Unknown clustering: {name}")
 
-    def clean_label(label: str) -> str:
-        """Pulisce l'output LLM da artefatti comuni"""
-        from html import unescape
-
-        # Decodifica HTML entities
-        label = unescape(label)
-
-        # Rimuovi prefisso "Problemi di N_" o "N_" all'inizio
-        label = re.sub(r"^(Problemi di\s+)?\d+_\s*", "", label, flags=re.IGNORECASE)
-
-        # Rimuovi prefissi comuni di risposta
-        label = re.sub(
-            r"^(Risposta:|OUTPUT:|Risultato:|Note:|Suggerimento:)\s*",
-            "",
-            label,
-            flags=re.IGNORECASE,
-        )
-
-        # Rimuovi virgolette casuali all'inizio/fine
-        label = label.strip("'\"")
-
-        # Rimuovi codice/markdown
-        label = re.sub(r"```.*?```", "", label, flags=re.DOTALL)
-        label = re.sub(r"`.*?`", "", label)
-
-        # Rimuovi parentesi con contenuto
-        label = re.sub(r"\(.*?\)", "", label)
-
-        # Rimuovi "risposta" isolata alla fine
-        label = re.sub(r"\s+risposta\.?\s*$", "", label, flags=re.IGNORECASE)
-
-        # Rimuovi underscore multipli o trattini lunghi
-        label = re.sub(r"_{2,}", "", label)
-        label = re.sub(r"-{3,}", "", label)
-
-        # Prendi solo il contenuto prima di "Note:", "Suggerimento:", ecc.
-        label = re.split(
-            r"\s+(Note:|Suggerimento:|Risposta corretta)", label, flags=re.IGNORECASE
-        )[0]
-
-        # Prendi solo la prima frase completa
-        sentences = re.split(r"[.!?]\s+", label)
-        if sentences:
-            label = sentences[0]
-
-        # Aggiungi punto finale se manca
-        if label and not label.endswith((".", "!", "?")):
-            label += "."
-
-        # Normalizza spazi
-        label = re.sub(r"\s+", " ", label)
-
-        # Capitalizza prima lettera
-        if label:
-            label = label[0].upper() + label[1:]
-
-        # Tronca se troppo lungo (15 parole)
-        words = label.split()
-        if len(words) > 15:
-            label = " ".join(words[:15]) + "."
-
-        return label.strip()
-
     def run(
         self,
         docs: list,
@@ -321,52 +258,7 @@ class TopicModeler:
             newfig = self.topic_model.visualize_topics()
             newfig.write_html("./out/newTopic.html")
 
-            """
-
-            # Merge by specific topics
-            merge = input(
-                "Look at topic.html. Do you want to merge specific topics? (Y/N): "
-            )
-
-            while merge.upper() == "Y":
-                print(
-                    "Insert topic pairs to merge, one per line.\n"
-                    "Example:\n"
-                    "1 2\n"
-                    "3 4\n"
-                    "Empty line to finish."
-                )
-
-                list_to_merge = []
-
-                while True:
-                    line = input()
-                    if line.strip() == "":
-                        break
-                    try:
-                        a, b = map(int, line.split())
-                        list_to_merge.append([a, b])
-                    except ValueError:
-                        print("Invalid format. Use: <int> <int>")
-
-                if not list_to_merge:
-                    print("No valid topic pairs provided. Skipping merge.")
-                else:
-                    self.topic_model.merge_topics(docs, list_to_merge)
-                    topics = self.topic_model.topics_
-                    if architecture_name == "umap_hdbscan":
-                        _, probs = self.topic_model.transform(docs)
-                    else:
-                        _ = self.topic_model.transform(docs)
-                        probs = None
-
-                    newfig = self.topic_model.visualize_topics()
-                    newfig.write_html("./out/newTopic.html")
-
-                    print(f"Merged topic pairs: {list_to_merge}")
-
-                merge = input("Look at newTopic.html. Merge more topics? (Y/N): ")
-            """
+          
         topic_descriptions = {}
 
         if cfg.get("llmRepresentation"):
@@ -376,7 +268,6 @@ class TopicModeler:
             tokenizer = AutoTokenizer.from_pretrained(model_id)
             tokenizer.pad_token = tokenizer.eos_token  # Fix per padding
 
-            # Quantizzazione
             bnb_config = transformers.BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
@@ -428,11 +319,8 @@ class TopicModeler:
 
             def clean_description(text: str) -> str:
                 text = text.strip()
-
-                # prendi solo la prima frase
                 text = text.split("\n")[0]
 
-                # rimuovi keyword proibite
                 forbidden = [
                     "Risposta",
                     "Ragionamento",
@@ -448,7 +336,6 @@ class TopicModeler:
                     if f in text:
                         text = text.split(f)[0]
 
-                # fallback
                 if len(text.split()) < 3:
                     return "Problemi legati all’utilizzo dell’app"
 
@@ -458,25 +345,19 @@ class TopicModeler:
 
             for topic_id in self.topic_model.get_topic_info()["Topic"]:
                 if topic_id == -1:
-                    continue  # skip outliers
+                    continue 
 
-                # top words c-TF-IDF
                 topic_words = [w for w, _ in self.topic_model.get_topic(topic_id)[:10]]
 
-                # documenti del topic
                 topic_docs = [doc for doc, t in zip(docs, topics) if t == topic_id][:5]
 
                 # prompt
                 prompt_filled = prompt.replace(
                     "{documents}", "\n".join(topic_docs[:2])
                 ).replace("{keywords}", ", ".join(topic_words))
-
-                # chiamata LLM
+                
                 result = generator(prompt_filled)
                 resultCleaned = clean_description(result[0]["generated_text"])
-
-                # pulizia output
-                # description = self.clean_label(result)
 
                 topic_descriptions[topic_id] = resultCleaned
 
