@@ -4,6 +4,8 @@ This repository contains the advanced Topic Detection pipeline developed for the
 
 The goal of this project is to analyze user feedback (reviews) to automatically detect, classify, and hierarchically organize discussion topics, focusing specifically on negative feedback ("Problemi") to provide actionable insights.
 
+![Overview of the proposed topic detection pipeline. Components highlighted in purple denote configurable stages.](./pipeline.png)
+
 ##  Key Features
 
 - **State-of-the-Art Topic Modeling**: Built on **BERTopic**, enhanced with custom dimensionality reduction (UMAP, KernelPCA) and clustering (HDBSCAN, K-Means, Spectral) strategies.
