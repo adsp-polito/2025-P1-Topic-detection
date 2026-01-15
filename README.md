@@ -6,6 +6,25 @@ The goal of this project is to analyze user feedback (reviews) to automatically 
 
 ![Overview of the proposed topic detection pipeline. Components highlighted in purple denote configurable stages.](./pipeline.png)
 
+
+## Why This Approach is Necessary for HYPE:
+
+HYPE collects reviews from multiple platforms, all of which may contain diverse types of user feedback. However, these reviews come with challenges that can hinder the quick and accurate identification of relevant topics, including:
+
+- **Ambiguous meanings**: Reviews can contain vague language or unclear complaints that need to be interpreted correctly.
+- **Multi-label reviews**: A single review may cover multiple issues, requiring an effective way to assign it to multiple topics.
+- **Multilingual content**: Reviews may be written in various languages, making it difficult to maintain consistency in analysis.
+- **Off-topic reviews**: Some reviews may not be related to the app at all and need to be filtered out to avoid distorting the results.
+- **Copy-pasted content and spam**: Certain reviews may be repetitive, irrelevant, or of low quality, which can reduce the quality of insights.
+
+By automating these processes, HYPE can quickly analyze large volumes of feedback to identify recurring issues, detect emerging trends, and ultimately improve the app's functionality based on user needs. This allows the **Research & Customer Insight team** to act faster, providing them with the insights necessary for **data-driven product improvements**.
+
+<div style="display: flex; justify-content: space-between;">
+  <p>Text content goes here (if needed).</p>
+  <img src="pipeline.png" alt="Image description" width="50%" style="max-width: 300px;">
+</div>
+
+
 ##  Key Features
 
 - **State-of-the-Art Topic Modeling**: Built on **BERTopic**, enhanced with custom dimensionality reduction (UMAP, KernelPCA) and clustering (HDBSCAN, K-Means, Spectral) strategies.
