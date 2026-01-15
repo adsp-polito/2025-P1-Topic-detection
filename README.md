@@ -4,7 +4,7 @@ This repository contains the advanced Topic Detection pipeline developed for the
 
 The goal of this project is to analyze user feedback (reviews) to automatically detect, classify, and hierarchically organize discussion topics, focusing specifically on negative feedback ("Problemi") to provide actionable insights.
 
-## 🚀 Key Features
+##  Key Features
 
 - **State-of-the-Art Topic Modeling**: Built on **BERTopic**, enhanced with custom dimensionality reduction (UMAP, KernelPCA) and clustering (HDBSCAN, K-Means, Spectral) strategies.
 - **LLM-Powered Labeling**: Uses **Llama 3.1 8B Instruct** (quantized) to generate human-readable, consistent labels for topics (e.g., _"Problemi di accesso app"_ instead of just a list of keywords).
@@ -17,7 +17,7 @@ The goal of this project is to analyze user feedback (reviews) to automatically 
 - **Hierarchical Analysis**: implementation of hierarchical topic clustering to compare discovered topics against a known business taxonomy.
 - **Experiment Tracking**: Full integration with **Weights & Biases (WandB)** for logging experiments, visualizing embeddings, and tracking metrics (Silhouette score, Coherence, Diversity).
 
-## 📂 Project Structure
+##  Project Structure
 
 ```text
 ├── src/                   # Source code modules
@@ -35,7 +35,7 @@ The goal of this project is to analyze user feedback (reviews) to automatically 
 └── README.md              # This file
 ```
 
-## 🛠️ Installation
+##  Installation
 
 ### Prerequisites
 
@@ -71,7 +71,7 @@ The goal of this project is to analyze user feedback (reviews) to automatically 
     python -m spacy download it_core_news_lg
     ```
 
-## ⚙️ Configuration
+##  Configuration
 
 The pipeline is fully configurable via `config.yaml`. Key sections include:
 
@@ -80,7 +80,7 @@ The pipeline is fully configurable via `config.yaml`. Key sections include:
 - **`translation`**: configuration for the NLLB translation model.
 - **`project`**: Toggle `wandb_logging` (True/False) and set random seeds.
 
-## 🚀 Usage
+##  Usage
 
 To run the full pipeline (Preprocessing → Translation → Topic Modeling → Evaluation):
 
@@ -127,7 +127,7 @@ Results are saved in the `out/` directory:
 - `bertopic_model/`: The saved BERTopic model (Safetensors format).
 - `hierarchy/`: Hierarchical clustering plots and trees.
 
-## 📊 Evaluation & Taxonomy
+##  Evaluation & Taxonomy
 
 The system includes a dedicated `evaluation.py` module that:
 
