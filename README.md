@@ -7,26 +7,20 @@ The goal of this project is to analyze user feedback (reviews) to automatically 
 ![Overview of the proposed topic detection pipeline. Components highlighted in purple denote configurable stages.](./pipeline.png)
 
 
-# Why This Approach is Necessary for HYPE:
+## Why This Approach is Necessary for HYPE:
 
 HYPE collects reviews from multiple platforms, all of which may contain diverse types of user feedback. However, these reviews come with challenges that can hinder the quick and accurate identification of relevant topics, including:
 
-<div style="display: flex; align-items: center;">
-  <div style="flex: 1; padding-right: 20px;">
-    <ul>
-      <li><strong>Ambiguous meanings</strong>: Reviews can contain vague language or unclear complaints that need to be interpreted correctly.</li>
-      <li><strong>Multi-label reviews</strong>: A single review may cover multiple issues, requiring an effective way to assign it to multiple topics.</li>
-      <li><strong>Multilingual content</strong>: Reviews may be written in various languages, making it difficult to maintain consistency in analysis.</li>
-      <li><strong>Off-topic reviews</strong>: Some reviews may not be related to the app at all and need to be filtered out to avoid distorting the results.</li>
-      <li><strong>Copy-pasted content and spam</strong>: Certain reviews may be repetitive, irrelevant, or of low quality, which can reduce the quality of insights.</li>
-    </ul>
-  </div>
-  <div style="flex: 1;">
-    <img src="pipeline.png" alt="Image description" style="width: 100%; max-width: 300px;">
-  </div>
-</div>
+- **Ambiguous meanings**: Reviews can contain vague language or unclear complaints that need to be interpreted correctly.
+- **Multi-label reviews**: A single review may cover multiple issues, requiring an effective way to assign it to multiple topics.
+- **Multilingual content**: Reviews may be written in various languages, making it difficult to maintain consistency in analysis.
+- **Off-topic reviews**: Some reviews may not be related to the app at all and need to be filtered out to avoid distorting the results.
+- **Copy-pasted content and spam**: Certain reviews may be repetitive, irrelevant, or of low quality, which can reduce the quality of insights.
 
 By automating these processes, HYPE can quickly analyze large volumes of feedback to identify recurring issues, detect emerging trends, and ultimately improve the app's functionality based on user needs. This allows the **Research & Customer Insight team** to act faster, providing them with the insights necessary for **data-driven product improvements**.
+
+
+![Illustration of an examples of user reviews](./review.png)
 
 
 ##  Key Features
