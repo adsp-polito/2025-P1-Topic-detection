@@ -22,7 +22,7 @@ HYPE collects reviews from multiple platforms, all of which may contain diverse 
     </ul>
   </div>
   <div style="flex: 1;">
-    <img src="./review.png" alt="Topic Detection Process" style="width: 50%; max-width: 300px;">
+    <img src="./review.png" alt="Topic Detection Process" style="width: 30%; max-width: 300px; float:right">
   </div>
 </div>
 
