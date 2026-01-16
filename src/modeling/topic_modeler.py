@@ -81,8 +81,6 @@ class TopicModeler:
         if name == "kernel_pca":
             kcfg = self.config.get("kernel_pca")
             return KernelPCA(
-                n_components=kcfg["n_components"],
-                kernel=kcfg.get("kernel", "rbf"),
                 random_state=cfg.get("project.seed", 42),
             )
 
@@ -108,14 +106,12 @@ class TopicModeler:
             return KMeans(
                 n_clusters=kcfg["n_clusters"],
                 random_state=cfg.get("project.seed", 42),
-                n_init="auto",
             )
 
         if name == "spectral":
             scfg = self.config.get("spectral")
             return SpectralClustering(
                 n_clusters=scfg["n_clusters"],
-                affinity="nearest_neighbors",
                 random_state=cfg.get("project.seed", 42),
             )
 
