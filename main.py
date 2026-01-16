@@ -252,33 +252,23 @@ def main():
             logger=main_logger,
         )
 
-        """
-        output_probs_path = "./out/reviews_topic_probabilities.xlsx"
-
-        save_reviews_with_topic_probabilities(
-            docs=docs,
-            topics=topics,
-            probs=probs,
-            output_path=output_probs_path,
-            top_k=3,
-        )
-        """
-
         # MULTILABELING
-        multi_label_modeler = MultiLabelModeler(model, docs, topics, probs)
-        results_df = multi_label_modeler.get_top3_topics_per_review(
-            indices=None, top_words=5, alpha=0.85, min_abs_score=0.20, max_labels=3
-        )
-        results_df.to_excel("reviews_top3_topics.xlsx", index=False)
-        print(f"Salvato {len(results_df)} review con top 3 topic")
+        if definedArchitecture_name == "umap_hdbscan":
+          multi_label_modeler = MultiLabelModeler(model, docs, topics, probs)
+          results_df = multi_label_modeler.get_top3_topics_per_review(
+              indices=None, top_words=5, alpha=0.85, min_abs_score=0.20, max_labels=3
+          )
+          results_df.to_excel("./out/reviews_top3_topics.xlsx", index=False)
+          print(f"Saved {len(results_df)} reviews with 3 top topics")
+
+          updated_topics = results_df["assigned_topic_primary"]
+          df["updated_topic"] = updated_topics
+          df["multi_topics"] = results_df["multi_topics"]
 
         # Save Basic Results
         if isinstance(topics, tuple):
             topics = topics[0]
         df["topic"] = topics
-        updated_topics = results_df["assigned_topic_primary"]
-        df["updated_topic"] = updated_topics
-        df["multi_topics"] = results_df["multi_topics"]
 
         n_outliers = len(df[df["topic"] == -1])
         outlier_perc = (n_outliers / len(df)) * 100
@@ -286,11 +276,12 @@ def main():
             f"--> [Evaluation] Outliers (Topic -1): {n_outliers} ({outlier_perc:.2f}%)"
         )
 
-        n_outliers = len(df[df["updated_topic"] == -1])
-        outlier_perc = (n_outliers / len(df)) * 100
-        print(
-            f"--> [Evaluation] Updated outliers after outlier reduction (Topic -1): {n_outliers} ({outlier_perc:.2f}%)"
-        )
+        if definedArchitecture_name == "umap_hdbscan":
+          n_outliers = len(df[df["updated_topic"] == -1])
+          outlier_perc = (n_outliers / len(df)) * 100
+          print(
+              f"--> [Evaluation] Updated outliers after outlier reduction (Topic -1): {n_outliers} ({outlier_perc:.2f}%)"
+          )
 
         if cfg.get("project.wandb_logging") and main_logger:
             main_logger.log_metrics({"outlier_percentage": outlier_perc})
@@ -334,11 +325,14 @@ def main():
         embeddings = tm.embedding_model.encode(docs, show_progress_bar=False)
 
         # Calculate Coherence (Logs to WandB if enabled)
+        if definedArchitecture_name == "umap_hdbscan":
+          topics = updated_topics
+
         scores = calculate_coherence_metrics(
             model,
             docs,
             embeddings,
-            updated_topics,
+            topics,
             embedding_model=tm.embedding_model,
             logger=main_logger,
         )
@@ -375,17 +369,20 @@ def main():
             )
 
             # Add the label column to the main dataframe
-            df["taxonomy_label"] = df["updated_topic"].map(topic_to_label)
-            # df["taxonomy_label"] = df["taxonomy_label"].fillna(["No Match (Outlier)"])
+            if definedArchitecture_name == "umap_hdbscan":
+              df["taxonomy_label"] = df["updated_topic"].map(topic_to_label)
+              df["taxonomy_labels_multi"] = df["multi_topics"].apply(
+                lambda x: map_topics_to_taxonomy_list(x, topic_to_label)
+                )
+            else:
+              df["taxonomy_label"] = df["topic"].map(topic_to_label)
+            
             df["taxonomy_label"] = df["taxonomy_label"].apply(
                 lambda x: [] if pd.isna(x) else x
-            )
-            df["taxonomy_labels_multi"] = df["multi_topics"].apply(
-                lambda x: map_topics_to_taxonomy_list(x, topic_to_label)
-            )
+              )
 
             # Re-save the updated dataframe with taxonomy labels
-            final_path = "resultswithtaxonomy.xlsx"
+            final_path = "./out/resultswithtaxonomy.xlsx"
             df = df.replace(
                 {
                     "\r": "",
@@ -422,20 +419,21 @@ def main():
 
             # ExactMatch count
             matcher = ExactMatcher(df)
-            match = matcher.compute_exact_match_mono()
+            exact_match = matcher.compute_exact_match_mono()
             precision_mono = matcher.compute_precision(mode="mono")
-            precision_multi = matcher.compute_precision(mode="multi")
             predcision_silhouette_translations_mono = (
                 matcher.compute_precision_silhouette_translation(
                     embeddings, topics, mode="mono"
                 )
             )
-            predcision_silhouette_translations_multi = (
+            if definedArchitecture_name == "umap_hdbscan":
+              precision_multi = matcher.compute_precision(mode="multi")
+              predcision_silhouette_translations_multi = (
                 matcher.compute_precision_silhouette_translation(
                     embeddings, topics, mode="multi"
                 )
             )
-
+            
             if main_logger:
                 main_logger.log_artifact(
                     out_file_map,
