@@ -1,5 +1,10 @@
 # HYPE Topic Detection - ADSP Project
 
+
+**Research Paper**: This implementation is described in detail in:  
+ *"An End-to-End NLP Pipeline for Topic Detection in App Reviews"*  
+ Ciccaglione A., Foco S., Lotf Ranaei A. (2025)  
+
 This repository contains the advanced Topic Detection pipeline developed for the **Applied Data Science Project** course at **Politecnico di Torino** (2025/2026).
 
 The goal of this project is to analyze user feedback (reviews) to automatically detect, classify, and hierarchically organize discussion topics, focusing specifically on negative feedback ("Problemi") to provide actionable insights.
@@ -31,6 +36,37 @@ By automating these processes, HYPE can quickly analyze large volumes of feedbac
   - Deduplication
 - **Hierarchical Analysis**: implementation of hierarchical topic clustering to compare discovered topics against a known business taxonomy.
 - **Experiment Tracking**: Full integration with **Weights & Biases (WandB)** for logging experiments, visualizing embeddings, and tracking metrics (Silhouette score, Coherence, Diversity).
+
+##  How It Works
+
+The pipeline leverages **BERTopic**, a state-of-the-art topic modeling framework  that combines transformer embeddings, dimensionality reduction, and density-based  clustering to discover coherent topics in app reviews.
+
+![BERTopic workflow illustration](./bertopic_workflow.png)
+*Figure: The BERTopic workflow, illustrated with a topic characterized by keywords 
+related to authentication and access issues (e.g., 'password', 'accedere', 'errore').*
+
+### Core Steps:
+
+1. **Document Embeddings**: Reviews are encoded using Sentence-BERT 
+   (paraphrase-multilingual-MiniLM-L12-v2) to capture semantic meaning.
+
+2. **Dimensionality Reduction**: UMAP reduces embedding dimensionality while 
+   preserving local neighborhood structure.
+
+3. **Clustering**: HDBSCAN identifies dense regions as topics, automatically 
+   determining the optimal number of clusters.
+
+4. **Topic Representation**: Class-based TF-IDF (c-TF-IDF) extracts the most 
+   representative keywords for each topic.
+
+5. **LLM Labeling**: Llama 3.2 3B generates human-readable topic descriptions 
+   from keywords (e.g., "Problemi di accesso e autenticazione").
+  
+![BERTopic workflow illustration](pipelineBert.png)
+*Figure: The BERTopic workflow, illustrated with a topic characterized by keywords 
+related to authentication and access issues (e.g., 'password', 'accedere', 'errore').*
+
+
 
 ##  Project Structure
 
