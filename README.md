@@ -56,7 +56,7 @@ The pipeline leverages **BERTopic**, a state-of-the-art topic modeling framework
 4. **Topic Representation**: Class-based TF-IDF (c-TF-IDF) extracts the most 
    representative keywords for each topic.
 
-5. **LLM Labeling**: Llama 3.2 3B generates human-readable topic descriptions 
+5. **LLM Labeling**: Llama 3.1 8B generates human-readable topic descriptions 
    from keywords (e.g., "Problemi di accesso e autenticazione").
   
 ![BERTopic workflow illustration](pipelinebert4.png)
