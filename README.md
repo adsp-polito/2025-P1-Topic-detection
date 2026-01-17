@@ -7,6 +7,10 @@ The goal of this project is to analyze user feedback (reviews) to automatically 
 
 ![Overview of the proposed topic detection pipeline. Components highlighted in purple denote configurable stages.](./pipeline.png)
 
+*Figure: Overview of the proposed topic detection pipeline. Red lines represent the core steps, while black and dotted blocks
+show optional components explored as part of the research. Components highlighted in purple denote configurable stages.*
+
+
 ## Why This Approach is Necessary for HYPE:
 
 HYPE collects reviews from multiple platforms, all of which may contain diverse types of user feedback. However, these reviews come with challenges that can hinder the quick and accurate identification of relevant topics, including:
@@ -173,7 +177,12 @@ Results are saved in the `out/` directory:
 
 ##  Evaluation & Taxonomy
 
-The system includes a dedicated `evaluation.py` module that:
+The system includes a dedicated `evaluation.py` module that: 
+
+1.  Calculates **Silhouette Score**, **Topic Diversity** and **Topic Coherence** metrics.
+2.  Maps discovered topics to a pre-defined Taxonomy using semantic similarity.
+3.  Computes precision metrics for mono-label and multi-label scenarios.
+
 
 ---
 
@@ -181,8 +190,3 @@ The system includes a dedicated `evaluation.py` module that:
  *"An End-to-End NLP Pipeline for Topic Detection in App Reviews"*  
  Ciccaglione A., Foco S., Lotf Ranaei A. (2025)  
 
- 
-
-1.  Calculates **Silhouette Score**, **Topic Diversity** and **Topic Coherence** metrics.
-2.  Maps discovered topics to a pre-defined Taxonomy using semantic similarity.
-3.  Computes precision metrics for mono-label and multi-label scenarios.
