@@ -55,7 +55,7 @@ The pipeline leverages **BERTopic**, a state-of-the-art topic modeling framework
 5. **LLM Labeling**: Llama 3.2 3B generates human-readable topic descriptions 
    from keywords (e.g., "Problemi di accesso e autenticazione").
   
-![BERTopic workflow illustration](pipelineBert.png)
+![BERTopic workflow illustration](pipelinebert4.png)
 *Figure: The BERTopic workflow, illustrated with a topic characterized by keywords 
 related to authentication and access issues (e.g., 'password', 'accedere', 'errore').*
 
