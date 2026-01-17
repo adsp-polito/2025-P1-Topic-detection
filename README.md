@@ -1,10 +1,6 @@
 # HYPE Topic Detection - ADSP Project
 
 
-**Research Paper**: This implementation is described in detail in:  
- *"An End-to-End NLP Pipeline for Topic Detection in App Reviews"*  
- Ciccaglione A., Foco S., Lotf Ranaei A. (2025)  
-
 This repository contains the advanced Topic Detection pipeline developed for the **Applied Data Science Project** course at **Politecnico di Torino** (2025/2026).
 
 The goal of this project is to analyze user feedback (reviews) to automatically detect, classify, and hierarchically organize discussion topics, focusing specifically on negative feedback ("Problemi") to provide actionable insights.
@@ -181,6 +177,14 @@ Results are saved in the `out/` directory:
 ##  Evaluation & Taxonomy
 
 The system includes a dedicated `evaluation.py` module that:
+
+---
+
+**Research Paper**: This implementation is described in detail in:  
+ *"An End-to-End NLP Pipeline for Topic Detection in App Reviews"*  
+ Ciccaglione A., Foco S., Lotf Ranaei A. (2025)  
+
+ 
 
 1.  Calculates **Silhouette Score**, **Topic Diversity** and **Topic Coherence** metrics.
 2.  Maps discovered topics to a pre-defined Taxonomy using semantic similarity.
