@@ -37,9 +37,6 @@ By automating these processes, HYPE can quickly analyze large volumes of feedbac
 
 The pipeline leverages **BERTopic**, a state-of-the-art topic modeling framework  that combines transformer embeddings, dimensionality reduction, and density-based  clustering to discover coherent topics in app reviews.
 
-![BERTopic workflow illustration](./bertopic_workflow.png)
-*Figure: The BERTopic workflow, illustrated with a topic characterized by keywords 
-related to authentication and access issues (e.g., 'password', 'accedere', 'errore').*
 
 ### Core Steps:
 
