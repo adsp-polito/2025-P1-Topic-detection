@@ -5,7 +5,7 @@ This repository contains the advanced Topic Detection pipeline developed for the
 
 The goal of this project is to analyze user feedback (reviews) to automatically detect, classify, and hierarchically organize discussion topics, focusing specifically on negative feedback ("Problemi") to provide actionable insights.
 
-![Overview of the proposed topic detection pipeline. Components highlighted in purple denote configurable stages.](./pipeline.png)
+![Overview of the proposed topic detection pipeline. Components highlighted in purple denote configurable stages.](./img/pipeline.png)
 
 *Figure: Overview of the proposed topic detection pipeline. Red lines represent the core steps, while black and dotted blocks
 show optional components explored as part of the research. Components highlighted in purple denote configurable stages.*
@@ -59,7 +59,7 @@ The pipeline leverages **BERTopic**, a state-of-the-art topic modeling framework
 5. **LLM Labeling**: Llama 3.1 8B generates human-readable topic descriptions 
    from keywords (e.g., "Problemi di accesso e autenticazione").
   
-![BERTopic workflow illustration](pipelinebert4.png)
+![BERTopic workflow illustration](./img/pipelinebert4.png)
 *Figure: The BERTopic workflow, illustrated with a topic characterized by keywords 
 related to authentication and access issues (e.g., 'password', 'accedere', 'errore').*
 
@@ -123,9 +123,11 @@ related to authentication and access issues (e.g., 'password', 'accedere', 'erro
 
 The pipeline is fully configurable via `config.yaml`. Key sections include:
 
-- **`pipeline`**: Control the architecture (`umap_hdbscan`, `kernelpca_kmeans`, etc.), run type (`unsupervised`, `semi_supervised`), and stopword strategy.
+- **`pipeline`**: Control the architecture (`umap_hdbscan`, `kernelpca_kmeans`, etc.), run type (`unsupervised`, `semi_supervised`), and stopword strategy (`none`, `italian`, `tfidf`, `delta`, `union`).
 - **`topic_modeling`**: Settings for UMAP (neighbors, components), HDBSCAN (min cluster size), and the embedding model (e.g., `paraphrase-multilingual-MiniLM-L12-v2`).
 - **`translation`**: configuration for the NLLB translation model.
+- **`reductionNumberTopic`**: Set to `true` to enable hierarchical reduction of topics.
+- **`llmRepresentation`**: Set to `true` to enable Llama 3.1 8B labeling for topics.
 - **`project`**: Toggle `wandb_logging` (True/False) and set random seeds.
 
 ##  Usage
